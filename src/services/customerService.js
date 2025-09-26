@@ -191,18 +191,17 @@ export const customerService = {
       const payload = {
         customer: parseInt(customerId),
         agent: logData.agentId,
-        status: logData.status,
+        status: logData.status?.trim(), // Remove any spaces
         remarks: logData.remarks,
         next_follow_up: logData.nextFollowUp || null
       }
       
-      console.log('Creating call log with payload:', JSON.stringify(payload, null, 2))
-      console.log('Raw logData received:', JSON.stringify(logData, null, 2))
+
 
       // Create call log entry
       const callLogResponse = await calllogApi.post('/nic_cc_calllog', payload)
 
-      console.log('Call log created:', callLogResponse.data)
+
 
       // Update customer status and attempt count
       const customerResponse = await customerApi.get(`/nic_cc_customer/${customerId}`)
@@ -226,7 +225,7 @@ export const customerService = {
 
 
 
-        await customerApi.patch(`/nic_cc_customer/${customerId}`, {
+        const updatePayload = {
           status: logData.status === 'payment_promised' ? 'contacted' :
             logData.status === 'resolved' ? 'resolved' :
               logData.status === 'contacted' ? 'contacted' : customer.status,
@@ -234,9 +233,10 @@ export const customerService = {
           total_attempts: newAttempts,
           assignment_status: newAssignmentStatus,
           assigned_agent: assignedAgent,
-          assigned_at: assignedAgent ? customer.assigned_at : null,
-          escalation_reason: newAssignmentStatus === 'escalation' ? `${newAttempts} failed attempts` : null
-        })
+          assigned_at: assignedAgent ? customer.assigned_at : null
+        }
+
+        await customerApi.patch(`/nic_cc_customer/${customerId}`, updatePayload)
 
         // Update agent's batch size if customer was released
         if (!assignedAgent && customer.assigned_agent) {

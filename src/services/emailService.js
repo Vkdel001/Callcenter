@@ -4,6 +4,8 @@ class EmailService {
   constructor() {
     this.brevoApiUrl = 'https://api.brevo.com/v3'
     this.apiKey = import.meta.env.VITE_BREVO_API_KEY
+    
+
   }
 
   async sendTransactionalEmail({

@@ -61,11 +61,16 @@ export const customerService = {
 
   async fetchNext10Customers(agentId) {
     try {
-      // Get all customers
-      const customersResponse = await customerApi.get('/nic_cc_customer')
+      // Get all customers and active agents
+      const [customersResponse, agentsResponse] = await Promise.all([
+        customerApi.get('/nic_cc_customer'),
+        agentApi.get('/nic_cc_agent')
+      ])
+      
       const allCustomers = customersResponse.data || []
+      const activeAgents = agentsResponse.data?.filter(agent => agent.active) || []
 
-      // Filter available customers (not assigned, not completed, not escalated)
+      // Filter available customers (not assigned, not completed)
       const availableCustomers = allCustomers.filter(customer =>
         customer.assignment_status === 'available' || !customer.assignment_status
       )
@@ -75,8 +80,25 @@ export const customerService = {
         (b.amount_due || 0) - (a.amount_due || 0)
       )
 
-      // Take top 10
-      const next10 = sortedCustomers.slice(0, 10)
+      // Fair distribution algorithm
+      const agentCount = activeAgents.length
+      const currentAgentIndex = activeAgents.findIndex(agent => agent.id === agentId)
+      
+      if (currentAgentIndex === -1) {
+        throw new Error('Agent not found in active agents list')
+      }
+
+      // Round-robin selection: pick every Nth customer where N = number of agents
+      const next10 = []
+      let startIndex = currentAgentIndex // Start from agent's position in round-robin
+      
+      while (next10.length < 10 && startIndex < sortedCustomers.length) {
+        next10.push(sortedCustomers[startIndex])
+        startIndex += agentCount // Skip to next customer for this agent
+      }
+
+      console.log(`Fair distribution: Agent ${agentId} (position ${currentAgentIndex}) gets customers at indices:`, 
+        next10.map((_, i) => currentAgentIndex + (i * agentCount)))
 
       if (next10.length === 0) {
         return {

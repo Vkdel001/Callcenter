@@ -68,7 +68,9 @@ export const customerService = {
       ])
       
       const allCustomers = customersResponse.data || []
-      const activeAgents = agentsResponse.data?.filter(agent => agent.active) || []
+      const activeAgents = agentsResponse.data?.filter(agent => 
+        agent.active && agent.role === 'agent'
+      ) || []
 
       // Filter available customers (not assigned, not completed)
       const availableCustomers = allCustomers.filter(customer =>

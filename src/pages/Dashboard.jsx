@@ -80,11 +80,16 @@ const Dashboard = () => {
         
         <button
           onClick={() => fetchNext10Mutation.mutate()}
-          disabled={fetchNext10Mutation.isLoading}
+          disabled={fetchNext10Mutation.isLoading || customers.length >= 4}
           className="flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
           <RefreshCw className={`h-5 w-5 mr-2 ${fetchNext10Mutation.isLoading ? 'animate-spin' : ''}`} />
-          {fetchNext10Mutation.isLoading ? 'Fetching...' : 'Fetch Next 10 Customers'}
+          {customers.length >= 4 
+            ? 'Complete current customers first' 
+            : fetchNext10Mutation.isLoading 
+              ? 'Fetching...' 
+              : 'Fetch Next 10 Customers'
+          }
         </button>
       </div>
 

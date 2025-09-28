@@ -80,25 +80,23 @@ export const customerService = {
         (b.amount_due || 0) - (a.amount_due || 0)
       )
 
-      // Fair distribution algorithm
+      // Simple fair distribution: skip (agentCount - 1) records after each selection
       const agentCount = activeAgents.length
-      const currentAgentIndex = activeAgents.findIndex(agent => agent.id === agentId)
+      const skipCount = agentCount - 1
       
-      if (currentAgentIndex === -1) {
-        throw new Error('Agent not found in active agents list')
-      }
-
-      // Round-robin selection: pick every Nth customer where N = number of agents
       const next10 = []
-      let startIndex = currentAgentIndex // Start from agent's position in round-robin
+      let currentIndex = 0
       
-      while (next10.length < 10 && startIndex < sortedCustomers.length) {
-        next10.push(sortedCustomers[startIndex])
-        startIndex += agentCount // Skip to next customer for this agent
+      while (next10.length < 10 && currentIndex < sortedCustomers.length) {
+        // Take current customer
+        next10.push(sortedCustomers[currentIndex])
+        
+        // Skip the next (agentCount - 1) customers for other agents
+        currentIndex += (skipCount + 1) // +1 to move to next available after skip
       }
 
-      console.log(`Fair distribution: Agent ${agentId} (position ${currentAgentIndex}) gets customers at indices:`, 
-        next10.map((_, i) => currentAgentIndex + (i * agentCount)))
+      console.log(`Fair distribution: Agent count = ${agentCount}, Skip count = ${skipCount}`)
+      console.log('Selected customer indices:', next10.map((_, i) => i * agentCount))
 
       if (next10.length === 0) {
         return {

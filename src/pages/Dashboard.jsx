@@ -14,6 +14,12 @@ const Dashboard = () => {
     { enabled: !!user?.id }
   )
 
+  const { data: dashboardStats = {}, isLoading: statsLoading } = useQuery(
+    ['dashboardStats', user?.id],
+    () => customerService.getDashboardStats(user?.id),
+    { enabled: !!user?.id }
+  )
+
   const fetchNext10Mutation = useMutation(
     () => customerService.fetchNext10Customers(user?.id),
     {
@@ -32,12 +38,10 @@ const Dashboard = () => {
   )
 
   const stats = {
-    totalCustomers: customers.length,
+    totalCustomers: dashboardStats.totalAssigned || customers.length,
     pendingCalls: customers.filter(c => c.status === 'pending').length,
     totalDue: customers.reduce((sum, c) => sum + c.amountDue, 0),
-    contactedToday: customers.filter(c => 
-      c.lastCallDate === new Date().toISOString().split('T')[0]
-    ).length
+    contactedToday: dashboardStats.contactedToday || 0
   }
 
   const StatCard = ({ icon: Icon, title, value, color = 'blue' }) => (

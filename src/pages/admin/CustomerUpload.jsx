@@ -88,13 +88,25 @@ const CustomerUpload = () => {
         return
       }
       
-      // Upload customers one by one
+      // Smart upsert - check existing customers first
       const results = {
         total: customers.length,
         successful: 0,
         failed: 0,
+        updated: 0,
+        created: 0,
         errors: []
       }
+      
+      // Get all existing customers to check for duplicates
+      const existingCustomersResponse = await customerApi.get('/nic_cc_customer')
+      const existingCustomers = existingCustomersResponse.data || []
+      console.log('Found existing customers:', existingCustomers.length)
+      
+      const existingPolicyMap = new Map(
+        existingCustomers.map(customer => [customer.policy_number, customer])
+      )
+      console.log('Policy map created with', existingPolicyMap.size, 'entries')
       
       for (const customer of customers) {
         try {
@@ -105,18 +117,58 @@ const CustomerUpload = () => {
             email: customer.email,
             amount_due: parseFloat(customer.amount_due),
             status: customer.status || 'pending',
-            last_call_date: customer.last_call_date ? customer.last_call_date : '2025-01-20', // Default date if empty
+            last_call_date: customer.last_call_date ? customer.last_call_date : '2025-01-20',
             total_attempts: parseInt(customer.total_attempts) || 0
-            // Don't send id, created_at, updated_at - Xano handles these
           }
           
-          console.log('Uploading customer:', payload)
+          // Try to add new fields, but don't fail if they don't exist
+          try {
+            payload.last_updated = new Date().toISOString()
+          } catch (e) {
+            console.log('last_updated field not available')
+          }
           
-          const response = await customerApi.post('/nic_cc_customer', payload)
-          console.log('Upload successful:', response.data)
+          const existingCustomer = existingPolicyMap.get(customer.policy_number)
+          console.log('Checking policy:', customer.policy_number, 'Found existing:', !!existingCustomer)
+          
+          if (existingCustomer) {
+            // UPDATE existing customer
+            const updatePayload = { ...payload }
+            
+            // Try to add update_count if field exists
+            try {
+              updatePayload.update_count = (existingCustomer.update_count || 0) + 1
+            } catch (e) {
+              console.log('update_count field not available')
+            }
+            
+            // Check if contact info changed - reset assignment if so
+            const contactChanged = 
+              existingCustomer.email !== payload.email ||
+              existingCustomer.mobile !== payload.mobile
+            
+            if (contactChanged) {
+              updatePayload.assignment_status = 'available'
+              updatePayload.assigned_agent = null
+            }
+            
+            console.log('Updating existing customer:', payload.policy_number, 'ID:', existingCustomer.id)
+            const response = await customerApi.patch(`/nic_cc_customer/${existingCustomer.id}`, updatePayload)
+            console.log('Update successful:', response.data)
+            results.updated++
+          } else {
+            // CREATE new customer
+            console.log('Creating new customer:', payload.policy_number)
+            const response = await customerApi.post('/nic_cc_customer', payload)
+            console.log('Create successful:', response.data)
+            results.created++
+          }
+          
           results.successful++
         } catch (error) {
-          console.error('Upload failed for customer:', customer.policy_number, error.response?.data)
+          console.error('Upload failed for customer:', customer.policy_number)
+          console.error('Error details:', error.response?.data)
+          console.error('Payload sent:', payload)
           results.failed++
           
           let errorMessage = error.message

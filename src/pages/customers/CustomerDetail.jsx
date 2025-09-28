@@ -394,11 +394,7 @@ const CustomerDetail = () => {
                     🧪 Test Mode QR Code (CORS fallback)
                   </p>
                 )}
-                {qrData.merchantId && (
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    Merchant ID: {qrData.merchantId} | Amount: {formatCurrency(qrData.transactionAmount)}
-                  </p>
-                )}
+
               </div>
 
               <div className="space-y-3">

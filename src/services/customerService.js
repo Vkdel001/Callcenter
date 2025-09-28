@@ -457,6 +457,76 @@ NIC Life Insurance Mauritius`
     }
   },
 
+  async getDashboardStats(agentId) {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Get all customers to find total ever assigned to this agent
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+      
+      // Count customers currently assigned + those completed by this agent
+      const currentlyAssigned = allCustomers.filter(customer => 
+        customer.assigned_agent === agentId
+      ).length
+      
+      // Get call logs to find customers this agent has worked on
+      const callLogsResponse = await calllogApi.get('/nic_cc_calllog')
+      const allCallLogs = callLogsResponse.data || []
+      
+      // Find all unique customers this agent has ever called
+      const agentCallLogs = allCallLogs.filter(log => log.agent === agentId)
+      const uniqueCustomersWorked = new Set(agentCallLogs.map(log => log.customer))
+      
+      // Find unique customers contacted today with "contacted" or "resolved" status
+      const todayContactedCustomers = new Set()
+      
+      allCallLogs.forEach(log => {
+        if (log.agent !== agentId || !log.created_at) return
+        
+        try {
+          let logDate
+          if (typeof log.created_at === 'string') {
+            logDate = log.created_at.includes('T') 
+              ? log.created_at.split('T')[0] 
+              : log.created_at.split(' ')[0]
+          } else {
+            logDate = new Date(log.created_at).toISOString().split('T')[0]
+          }
+          
+          if (logDate === today && (log.status === 'contacted' || log.status === 'resolved')) {
+            todayContactedCustomers.add(log.customer)
+          }
+        } catch (error) {
+          console.error('Date parsing error for log:', log.created_at)
+        }
+      })
+      
+      // Add currently assigned customers to the worked-on set
+      allCustomers.forEach(customer => {
+        if (customer.assigned_agent === agentId) {
+          uniqueCustomersWorked.add(customer.id)
+        }
+      })
+
+      console.log('Dashboard Stats Debug:', {
+        agentId,
+        currentlyAssigned,
+        totalUniqueCustomers: uniqueCustomersWorked.size,
+        allCustomerIds: Array.from(uniqueCustomersWorked),
+        contactedTodayCount: todayContactedCustomers.size
+      })
+
+      return {
+        totalAssigned: uniqueCustomersWorked.size,
+        contactedToday: todayContactedCustomers.size
+      }
+    } catch (error) {
+      console.error('Failed to get dashboard stats:', error)
+      return { totalAssigned: 0, contactedToday: 0 }
+    }
+  },
+
   async sendEmail(customer, qrCodeUrl, paymentLink) {
     const { emailService } = await import('./emailService')
 

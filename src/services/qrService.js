@@ -70,8 +70,8 @@ class QRService {
         throw new Error('No valid QR data received from ZwennPay')
       }
 
-      // Generate QR code image URL using a QR code service
-      const qrCodeUrl = await this.generateQRCodeImage(qrData)
+      // Generate branded QR code image
+      const qrCodeUrl = await this.createBrandedQRCode(qrData, customerData)
 
       return {
         success: true,
@@ -104,7 +104,7 @@ class QRService {
       // Simulate ZwennPay QR data format
       const testQrData = `00020101021226580014com.zwennpay.qr01${this.merchantId.toString().padStart(2, '0')}${customerData.policyNumber}0208${customerData.amountDue.toString()}5204000053034805802MU5925NIC Life Insurance Maurit6009Port Louis620705036304`
       
-      const qrCodeUrl = await this.generateQRCodeImage(testQrData)
+      const qrCodeUrl = await this.createBrandedQRCode(testQrData, customerData)
       
       return {
         success: true,
@@ -121,6 +121,125 @@ class QRService {
         success: false,
         error: error.message
       }
+    }
+  }
+
+  async createBrandedQRCode(qrData, customerData) {
+    try {
+      // Create canvas for branded QR code
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      
+      // Set canvas size (compact design)
+      canvas.width = 400
+      canvas.height = 480
+      
+      // White background
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      
+      // Generate basic QR code first
+      const qrCodeDataUrl = await this.generateQRCodeImage(qrData)
+      
+      return new Promise((resolve) => {
+        // Load logos
+        const maucasLogo = new Image()
+        const zwennPayLogo = new Image()
+        const qrImg = new Image()
+        
+        let imagesLoaded = 0
+        const totalImages = 3
+        
+        const checkAllLoaded = () => {
+          imagesLoaded++
+          if (imagesLoaded === totalImages) {
+            drawBrandedQR()
+          }
+        }
+        
+        const drawBrandedQR = () => {
+          // Top section - MauCAS logo area (white background)
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, canvas.width, 70)
+          
+          // Draw MauCAS logo (bigger)
+          const maucasWidth = 160
+          const maucasHeight = 50
+          const maucasX = (canvas.width - maucasWidth) / 2
+          ctx.drawImage(maucasLogo, maucasX, 10, maucasWidth, maucasHeight)
+          
+          // QR Code in center (much closer to logo and bigger)
+          const qrSize = 220
+          const qrX = (canvas.width - qrSize) / 2
+          const qrY = 65
+          ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize)
+          
+          // NIC branding (adjusted for bigger QR)
+          ctx.fillStyle = '#333333'
+          ctx.font = 'bold 32px Arial'
+          ctx.textAlign = 'center'
+          ctx.fillText('NIC', canvas.width / 2, 325)
+          
+          // Amount
+          ctx.font = 'bold 20px Arial'
+          ctx.fillText(`Amount: ${customerData.amountDue.toLocaleString()}`, canvas.width / 2, 355)
+          
+          // Policy Number
+          ctx.font = '16px Arial'
+          ctx.fillText(`Policy No: ${customerData.policyNumber}`, canvas.width / 2, 380)
+          
+          // Generated timestamp
+          ctx.font = '14px Arial'
+          ctx.fillStyle = '#999999'
+          const now = new Date()
+          const timestamp = now.toISOString().slice(0, 16).replace('T', ' ')
+          ctx.fillText(`Generated: ${timestamp}`, canvas.width / 2, 410)
+          
+          // Powered by text
+          ctx.font = '12px Arial'
+          ctx.fillStyle = '#666666'
+          ctx.fillText('Powered by', canvas.width / 2, 435)
+          
+          // Draw ZwennPay logo
+          const zwennWidth = 120
+          const zwennHeight = 35
+          const zwennX = (canvas.width - zwennWidth) / 2
+          ctx.drawImage(zwennPayLogo, zwennX, 445, zwennWidth, zwennHeight)
+          
+          // Convert canvas to data URL
+          resolve(canvas.toDataURL('image/png'))
+        }
+        
+        // Load all images
+        maucasLogo.onload = checkAllLoaded
+        maucasLogo.onerror = (e) => {
+          console.error('Failed to load MauCAS logo:', e)
+          checkAllLoaded()
+        }
+        maucasLogo.crossOrigin = 'anonymous'
+        maucasLogo.src = '/images/maucas2.jpeg'
+        
+        zwennPayLogo.onload = checkAllLoaded  
+        zwennPayLogo.onerror = (e) => {
+          console.error('Failed to load ZwennPay logo:', e)
+          checkAllLoaded()
+        }
+        zwennPayLogo.crossOrigin = 'anonymous'
+        zwennPayLogo.src = '/images/zwennPay.jpg'
+        
+        qrImg.onload = checkAllLoaded
+        qrImg.onerror = (e) => {
+          console.error('Failed to load QR code image:', e)
+          checkAllLoaded()
+        }
+        qrImg.crossOrigin = 'anonymous'
+        qrImg.src = qrCodeDataUrl
+      })
+      
+    } catch (error) {
+      console.error('Branded QR creation failed:', error)
+      // Fallback to basic QR code
+      return this.generateQRCodeImage(qrData)
     }
   }
 

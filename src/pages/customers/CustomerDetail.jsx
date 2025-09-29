@@ -194,14 +194,6 @@ const CustomerDetail = () => {
         </div>
 
         <div className="flex space-x-3">
-          <a
-            href={`tel:${customer.mobile}`}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-          >
-            <Phone className="h-4 w-4 mr-2" />
-            Call Now
-          </a>
-
           <button
             onClick={handleGenerateQR}
             disabled={generateQRMutation.isLoading}

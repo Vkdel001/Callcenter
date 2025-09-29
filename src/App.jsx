@@ -5,6 +5,8 @@ import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Signup from './pages/auth/Signup'
 import OTPVerification from './pages/auth/OTPVerification'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPasswordOTP from './pages/auth/ResetPasswordOTP'
 import Dashboard from './pages/Dashboard'
 import CustomerList from './pages/customers/CustomerList'
 import CustomerDetail from './pages/customers/CustomerDetail'
@@ -20,6 +22,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/otp-verify" element={<OTPVerification />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password-otp" element={<ResetPasswordOTP />} />
         <Route path="/" element={
           <ProtectedRoute>
             <Layout />

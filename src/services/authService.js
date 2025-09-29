@@ -172,5 +172,40 @@ export const authService = {
       
       throw new Error('Signup failed. Please check your Xano table structure.')
     }
+  },
+
+  async resetPassword(email, newPassword) {
+    try {
+      // Get user by email
+      const response = await agentApi.get('/nic_cc_agent')
+      const allAgents = response.data || []
+      
+      const agent = allAgents.find(a => a.email === email && a.active === true)
+      if (!agent) {
+        return {
+          success: false,
+          error: 'User not found'
+        }
+      }
+
+      // Update password
+      await agentApi.patch(`/nic_cc_agent/${agent.id}`, {
+        password_hash: newPassword
+      })
+
+      // Clear the password reset OTP after successful password reset
+      localStorage.removeItem(`otp_reset_${email}`)
+
+      return {
+        success: true,
+        message: 'Password reset successfully'
+      }
+    } catch (error) {
+      console.error('Password reset failed:', error)
+      return {
+        success: false,
+        error: 'Failed to reset password'
+      }
+    }
   }
 }

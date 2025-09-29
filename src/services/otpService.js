@@ -12,13 +12,22 @@ class OTPService {
   }
 
   // Store OTP with expiry
-  storeOTP(email, otp) {
+  storeOTP(email, otp, type = 'login') {
     const expiryTime = Date.now() + this.otpExpiry
-    this.otpStorage.set(email, {
+    const otpData = {
       otp,
       expiryTime,
-      attempts: 0
-    })
+      attempts: 0,
+      type
+    }
+    
+    if (type === 'password_reset') {
+      // Use localStorage for password reset OTPs (survives page navigation)
+      localStorage.setItem(`otp_reset_${email}`, JSON.stringify(otpData))
+    } else {
+      // Use Map for login OTPs (temporary)
+      this.otpStorage.set(email, otpData)
+    }
     
     // Auto-cleanup after expiry
     setTimeout(() => {
@@ -200,6 +209,107 @@ This is an automated security message. Please do not reply to this email.
     
     const remaining = otpData.expiryTime - Date.now()
     return Math.max(0, Math.ceil(remaining / 1000)) // seconds
+  }
+  async sendPasswordResetOTP(email) {
+    try {
+      // Check if user exists first
+      const { agentApi } = await import('./apiClient')
+      const response = await agentApi.get('/nic_cc_agent')
+      const allAgents = response.data || []
+      
+      const agent = allAgents.find(a => a.email === email && a.active === true)
+      if (!agent) {
+        return {
+          success: false,
+          error: 'No account found with this email address'
+        }
+      }
+
+      // Generate and store OTP for password reset
+      const otp = this.generateOTP()
+      console.log('Generated OTP for password reset:', otp)
+      this.storeOTP(email, otp, 'password_reset')
+      console.log('Stored OTP for email:', email)
+      
+      // Verify it was stored
+      const stored = this.otpStorage.get(email)
+      console.log('Verification - stored data:', stored)
+
+      // Send password reset email
+      const { emailService } = await import('./emailService')
+      const result = await emailService.sendPasswordResetEmail(email, agent.name, otp)
+
+      if (result.success) {
+        return {
+          success: true,
+          message: 'Password reset code sent to your email'
+        }
+      } else {
+        return {
+          success: false,
+          error: 'Failed to send reset code'
+        }
+      }
+    } catch (error) {
+      console.error('Password reset OTP failed:', error)
+      return {
+        success: false,
+        error: 'Failed to send reset code'
+      }
+    }
+  }
+
+  async verifyPasswordResetOTP(email, otp) {
+    try {
+      // Get password reset OTP from localStorage
+      const storedDataStr = localStorage.getItem(`otp_reset_${email}`)
+      
+      console.log('Stored OTP data string:', storedDataStr)
+      
+      if (!storedDataStr) {
+        return {
+          success: false,
+          error: 'No password reset OTP found for this email'
+        }
+      }
+      
+      const storedData = JSON.parse(storedDataStr)
+      console.log('Parsed stored data:', storedData)
+      
+      if (storedData.type !== 'password_reset') {
+        return {
+          success: false,
+          error: `Wrong OTP type. Expected: password_reset, Found: ${storedData.type}`
+        }
+      }
+
+      if (storedData.otp !== otp) {
+        return {
+          success: false,
+          error: 'Invalid verification code'
+        }
+      }
+
+      if (Date.now() > storedData.expiryTime) {
+        localStorage.removeItem(`otp_reset_${email}`)
+        return {
+          success: false,
+          error: 'Verification code has expired'
+        }
+      }
+
+      // Don't clear OTP yet - we need it for password reset confirmation
+      return {
+        success: true,
+        message: 'OTP verified successfully'
+      }
+    } catch (error) {
+      console.error('Password reset OTP verification failed:', error)
+      return {
+        success: false,
+        error: 'Verification failed'
+      }
+    }
   }
 }
 

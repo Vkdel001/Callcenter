@@ -4,7 +4,7 @@ class EmailService {
   constructor() {
     this.brevoApiUrl = 'https://api.brevo.com/v3'
     this.apiKey = import.meta.env.VITE_BREVO_API_KEY
-    
+
 
   }
 
@@ -190,9 +190,9 @@ This is an automated message. Please do not reply to this email.
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.statusText}`)
       }
-      
+
       const blob = await response.blob()
-      
+
       return new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => {
@@ -237,6 +237,75 @@ This is an automated message. Please do not reply to this email.
       templateId,
       templateParams
     })
+  }
+  async sendPasswordResetEmail(email, name, otp) {
+    try {
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #1f2937; margin: 0;">NIC Life Insurance</h1>
+            <p style="color: #6b7280; margin: 5px 0;">Password Reset Request</p>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h2 style="color: #1f2937; margin-top: 0;">Hello ${name},</h2>
+            <p>We received a request to reset your password for your NIC Life Insurance call center account.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; border: 2px solid #e5e7eb;">
+              <p style="margin: 0; font-size: 14px; color: #666;">Your Password Reset Code</p>
+              <div style="font-size: 32px; font-weight: bold; color: #1f2937; margin: 10px 0; letter-spacing: 4px;">${otp}</div>
+              <p style="margin: 0; font-size: 12px; color: #666;">Valid for 5 minutes</p>
+            </div>
+            
+            <div style="background: #fef2f2; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444;">
+              <strong>Security Notice:</strong>
+              <ul style="margin: 10px 0;">
+                <li>This code will expire in 5 minutes</li>
+                <li>Do not share this code with anyone</li>
+                <li>If you didn't request this reset, please ignore this email</li>
+              </ul>
+            </div>
+            
+            <p>If you have any questions, please contact our IT support team.</p>
+            
+            <p>Best regards,<br>
+            <strong>NIC Life Insurance Mauritius</strong></p>
+          </div>
+        </div>
+      `
+
+      const textContent = `
+        NIC Life Insurance - Password Reset Request
+        
+        Hello ${name},
+        
+        We received a request to reset your password for your call center account.
+        
+        Your Password Reset Code: ${otp}
+        (Valid for 5 minutes)
+        
+        Security Notice:
+        - This code will expire in 5 minutes
+        - Do not share this code with anyone
+        - If you didn't request this reset, please ignore this email
+        
+        Best regards,
+        NIC Life Insurance Mauritius
+      `
+
+      return await this.sendTransactionalEmail({
+        to: { email, name },
+        subject: 'NIC Life Insurance - Password Reset Code',
+        htmlContent,
+        textContent
+      })
+    } catch (error) {
+      console.error('Password reset email failed:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
   }
 }
 

@@ -3,14 +3,26 @@ import { customerApi, assignmentApi, calllogApi, agentApi } from './apiClient'
 export const customerService = {
   async getAssignedCustomers(agentId) {
     try {
-      // Get customers assigned to this agent
-      const customersResponse = await customerApi.get('/nic_cc_customer')
+      // Get customers and agent info
+      const [customersResponse, agentsResponse] = await Promise.all([
+        customerApi.get('/nic_cc_customer'),
+        agentApi.get('/nic_cc_agent')
+      ])
+      
       const allCustomers = customersResponse.data || []
+      const currentAgent = agentsResponse.data?.find(agent => agent.id === agentId)
 
       // Filter customers assigned to this agent
-      const assignedCustomers = allCustomers.filter(customer =>
+      let assignedCustomers = allCustomers.filter(customer =>
         customer.assigned_agent === agentId && customer.assignment_status === 'assigned'
       )
+
+      // Additional branch check for internal agents (safety measure)
+      if (currentAgent?.agent_type === 'internal' && currentAgent.branch_id) {
+        assignedCustomers = assignedCustomers.filter(customer => 
+          customer.branch_id === currentAgent.branch_id
+        )
+      }
 
       console.log('Retrieved assigned customers:', assignedCustomers.length)
 
@@ -72,10 +84,30 @@ export const customerService = {
         agent.active && agent.role === 'agent'
       ) || []
 
+      // Get current agent details to check branch assignment
+      const currentAgent = agentsResponse.data?.find(agent => agent.id === agentId)
+      if (!currentAgent) {
+        throw new Error('Agent not found')
+      }
+
+      console.log('Current agent:', currentAgent)
+      console.log('Agent type:', currentAgent.agent_type)
+      console.log('Agent branch:', currentAgent.branch_id)
+
       // Filter available customers (not assigned, not completed)
-      const availableCustomers = allCustomers.filter(customer =>
+      let availableCustomers = allCustomers.filter(customer =>
         customer.assignment_status === 'available' || !customer.assignment_status
       )
+
+      // Apply branch filtering for internal agents
+      if (currentAgent.agent_type === 'internal' && currentAgent.branch_id) {
+        availableCustomers = availableCustomers.filter(customer => 
+          customer.branch_id === currentAgent.branch_id
+        )
+        console.log(`Internal agent - filtered to branch ${currentAgent.branch_id}:`, availableCustomers.length, 'customers')
+      } else {
+        console.log('Call center agent - can access all customers:', availableCustomers.length)
+      }
 
       // Sort by priority (higher amount first)
       const sortedCustomers = availableCustomers.sort((a, b) =>
@@ -322,7 +354,8 @@ export const customerService = {
           paymentLink: result.paymentLink,
           qrData: result.qrData,
           merchantId: result.merchantId,
-          transactionAmount: result.transactionAmount
+          transactionAmount: result.transactionAmount,
+          customerData: customerData // Store customer data for the modal
         }
       } else {
         throw new Error(result.error)

@@ -8,7 +8,9 @@ const API_KEYS = {
   agent: import.meta.env.VITE_XANO_AGENT_API || 'dNA8QCWg',
   customer: import.meta.env.VITE_XANO_CUSTOMER_API || 'Q4jDYUWL',
   assignment: import.meta.env.VITE_XANO_ASSIGNMENT_API || '',
-  calllog: import.meta.env.VITE_XANO_CALLLOG_API || ''
+  calllog: import.meta.env.VITE_XANO_CALLLOG_API || '',
+  branch: import.meta.env.VITE_XANO_BRANCH_API || 'T_DdiKCA',
+  payment: import.meta.env.VITE_XANO_PAYMENT_API || '05i62DIx'
 }
 
 // Create API clients for each table
@@ -54,6 +56,8 @@ export const agentApi = createXanoClient(API_KEYS.agent)
 export const customerApi = createXanoClient(API_KEYS.customer)
 export const assignmentApi = createXanoClient(API_KEYS.assignment)
 export const calllogApi = createXanoClient(API_KEYS.calllog)
+export const branchApi = createXanoClient(API_KEYS.branch)
+export const paymentApi = createXanoClient(API_KEYS.payment)
 
 // Legacy export for backward compatibility
 export const apiClient = agentApi

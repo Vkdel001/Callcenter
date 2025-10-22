@@ -14,6 +14,9 @@ import CustomerUpload from './pages/admin/CustomerUpload'
 import Reports from './pages/admin/Reports'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AgentManagement from './pages/admin/AgentManagement'
+import BranchManagement from './pages/admin/BranchManagement'
+import QuickQRGenerator from './pages/QuickQRGenerator'
+import PaymentPlanTest from './pages/test/PaymentPlanTest'
 
 function App() {
   return (
@@ -32,10 +35,13 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="customers" element={<CustomerList />} />
           <Route path="customers/:id" element={<CustomerDetail />} />
+          <Route path="quick-qr" element={<QuickQRGenerator />} />
           <Route path="admin" element={<AdminDashboard />} />
           <Route path="admin/upload" element={<CustomerUpload />} />
           <Route path="admin/reports" element={<Reports />} />
           <Route path="admin/agents" element={<AgentManagement />} />
+          <Route path="admin/branches" element={<BranchManagement />} />
+          <Route path="test/payment-plan" element={<PaymentPlanTest />} />
         </Route>
       </Routes>
     </AuthProvider>

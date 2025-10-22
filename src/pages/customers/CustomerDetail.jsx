@@ -3,9 +3,13 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
-import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { useAuth } from '../../contexts/AuthContext'
+import AODModal from '../../components/modals/PaymentPlanModal'
+import { paymentPlanService } from '../../services/paymentPlanService'
+import { installmentService } from '../../services/installmentService'
+import { aodPdfService } from '../../services/aodPdfService'
 
 const CustomerDetail = () => {
   const { id } = useParams()
@@ -13,6 +17,8 @@ const CustomerDetail = () => {
   const queryClient = useQueryClient()
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrData, setQrData] = useState(null)
+  const [showAODModal, setShowAODModal] = useState(false)
+  const [downloadingAOD, setDownloadingAOD] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
@@ -45,6 +51,13 @@ const CustomerDetail = () => {
   const { data: customer, isLoading } = useQuery(
     ['customer', id],
     () => customerService.getCustomerById(id),
+    { enabled: !!id }
+  )
+
+  // Check for existing AOD
+  const { data: existingAOD } = useQuery(
+    ['customerAOD', id],
+    () => paymentPlanService.getCustomerActiveAOD(id),
     { enabled: !!id }
   )
 
@@ -160,6 +173,28 @@ const CustomerDetail = () => {
     }
   }
 
+  const handleDownloadExistingAOD = async () => {
+    if (!existingAOD || !customer) return
+
+    setDownloadingAOD(true)
+    try {
+      // Get installments if it's an installment payment
+      let installments = []
+      if (existingAOD.payment_method === 'installments') {
+        installments = await installmentService.getPaymentPlanInstallments(existingAOD.id)
+      }
+
+      // Generate and download PDF
+      await aodPdfService.downloadPdf(existingAOD, customer, installments)
+      alert('AOD PDF downloaded successfully!')
+    } catch (error) {
+      console.error('Failed to download AOD PDF:', error)
+      alert(`Failed to download AOD PDF: ${error.message}`)
+    } finally {
+      setDownloadingAOD(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -194,6 +229,25 @@ const CustomerDetail = () => {
         </div>
 
         <div className="flex space-x-3">
+          {existingAOD ? (
+            <button
+              onClick={handleDownloadExistingAOD}
+              disabled={downloadingAOD}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              {downloadingAOD ? 'Downloading...' : 'Download AOD PDF'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowAODModal(true)}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Create AOD
+            </button>
+          )}
+          
           <button
             onClick={handleGenerateQR}
             disabled={generateQRMutation.isLoading}
@@ -239,14 +293,21 @@ const CustomerDetail = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Status</label>
-                <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full ${customer.status === 'pending'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : customer.status === 'contacted'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-green-100 text-green-800'
-                  }`}>
-                  {customer.status}
-                </span>
+                <div className="flex items-center space-x-2 mt-1">
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${customer.status === 'pending'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : customer.status === 'contacted'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-green-100 text-green-800'
+                    }`}>
+                    {customer.status}
+                  </span>
+                  {existingAOD && (
+                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                      AOD Active
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -460,6 +521,13 @@ const CustomerDetail = () => {
           </div>
         </div>
       )}
+
+      {/* AOD Modal */}
+      <AODModal
+        isOpen={showAODModal}
+        onClose={() => setShowAODModal(false)}
+        customer={customer}
+      />
     </div>
   )
 }

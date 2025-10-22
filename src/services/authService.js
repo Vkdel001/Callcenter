@@ -188,10 +188,23 @@ export const authService = {
         }
       }
 
-      // Update password
-      await agentApi.patch(`/nic_cc_agent/${agent.id}`, {
-        password_hash: newPassword
-      })
+      // Update password - try password_hash first
+      console.log('Updating password for agent ID:', agent.id)
+      console.log('New password length:', newPassword.length)
+      
+      let updateResponse
+      try {
+        updateResponse = await agentApi.patch(`/nic_cc_agent/${agent.id}`, {
+          password_hash: newPassword
+        })
+        console.log('Password update successful with password_hash:', updateResponse.data)
+      } catch (firstError) {
+        console.log('password_hash failed, trying password field')
+        updateResponse = await agentApi.patch(`/nic_cc_agent/${agent.id}`, {
+          password: newPassword
+        })
+        console.log('Password update successful with password:', updateResponse.data)
+      }
 
       // Clear the password reset OTP after successful password reset
       localStorage.removeItem(`otp_reset_${email}`)
@@ -202,9 +215,12 @@ export const authService = {
       }
     } catch (error) {
       console.error('Password reset failed:', error)
+      console.error('Error response:', error.response?.data)
+      console.error('Error status:', error.response?.status)
+      
       return {
         success: false,
-        error: 'Failed to reset password'
+        error: error.response?.data?.message || 'Failed to reset password'
       }
     }
   }

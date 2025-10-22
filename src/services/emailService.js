@@ -238,6 +238,219 @@ This is an automated message. Please do not reply to this email.
       templateParams
     })
   }
+  // Send AOD PDF via email
+  async sendAODEmail(customer, aodData, pdfBlob, installments = []) {
+    try {
+      // Convert PDF blob to base64 for attachment
+      const pdfBase64 = await this.blobToBase64(pdfBlob)
+      
+      const htmlContent = this.generateAODEmailHTML(customer, aodData, installments)
+      const textContent = this.generateAODEmailText(customer, aodData, installments)
+      
+      const attachment = {
+        name: `AOD_${aodData.policy_number}_${new Date().toISOString().split('T')[0]}.pdf`,
+        content: pdfBase64,
+        type: 'application/pdf'
+      }
+
+      return await this.sendTransactionalEmail({
+        to: {
+          email: customer.email,
+          name: customer.name
+        },
+        subject: `Acknowledgment of Debt Agreement - Policy ${aodData.policy_number}`,
+        htmlContent,
+        textContent,
+        attachments: [attachment]
+      })
+    } catch (error) {
+      console.error('AOD email sending failed:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+
+  generateAODEmailHTML(customer, aodData, installments) {
+    const paymentMethodText = this.getPaymentMethodDescription(aodData)
+    const installmentTable = installments.length > 0 ? this.generateInstallmentTableHTML(installments) : ''
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Acknowledgment of Debt Agreement</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #003366; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .info-box { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #003366; }
+          .amount { font-size: 20px; font-weight: bold; color: #dc2626; }
+          .table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+          .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          .table th { background-color: #f2f2f2; }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+          .important { background: #fef2f2; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>NIC Life Insurance Mauritius</h1>
+            <h2 style="margin: 10px 0 0 0; font-weight: normal;">Acknowledgment of Debt Agreement</h2>
+          </div>
+          
+          <div class="content">
+            <p>Dear <strong>${customer.name}</strong>,</p>
+            
+            <p>Thank you for completing your Acknowledgment of Debt (AOD) agreement with NIC Life Insurance Mauritius. Please find the attached legal document for your records.</p>
+            
+            <div class="info-box">
+              <h3 style="margin-top: 0; color: #003366;">Agreement Details</h3>
+              <p><strong>Policy Number:</strong> ${aodData.policy_number}</p>
+              <p><strong>Outstanding Amount:</strong> <span class="amount">MUR ${aodData.outstanding_amount.toLocaleString()}</span></p>
+              <p><strong>Payment Method:</strong> ${paymentMethodText}</p>
+              <p><strong>Agreement Date:</strong> ${new Date(aodData.agreement_date).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> Active</p>
+            </div>
+
+            ${installmentTable}
+            
+            <div class="important">
+              <h4 style="margin-top: 0;">Important Information:</h4>
+              <ul style="margin: 10px 0;">
+                <li><strong>Legal Document:</strong> The attached PDF is a legally binding agreement</li>
+                <li><strong>Keep Safe:</strong> Please keep this document for your records</li>
+                <li><strong>Payment Reminders:</strong> You will receive reminders before each payment due date</li>
+                <li><strong>Contact Us:</strong> If you have any questions, please contact our customer service team</li>
+              </ul>
+            </div>
+            
+            <p>We appreciate your commitment to resolving this matter and look forward to your continued partnership with NIC Life Insurance Mauritius.</p>
+            
+            <p>Best regards,<br>
+            <strong>NIC Life Insurance Mauritius</strong><br>
+            Customer Service Team</p>
+          </div>
+          
+          <div class="footer">
+            <p>NIC Centre, 217 Royal Road, Curepipe, Mauritius</p>
+            <p>This is an automated message. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  generateAODEmailText(customer, aodData, installments) {
+    const paymentMethodText = this.getPaymentMethodDescription(aodData)
+    let installmentText = ''
+    
+    if (installments.length > 0) {
+      installmentText = `\n\nPayment Schedule:\n${installments.map((inst, i) => 
+        `${i + 1}. ${new Date(inst.due_date).toLocaleDateString()} - MUR ${inst.amount.toLocaleString()}`
+      ).join('\n')}`
+    }
+
+    return `
+NIC Life Insurance Mauritius
+Acknowledgment of Debt Agreement
+
+Dear ${customer.name},
+
+Thank you for completing your Acknowledgment of Debt (AOD) agreement with NIC Life Insurance Mauritius. Please find the attached legal document for your records.
+
+Agreement Details:
+- Policy Number: ${aodData.policy_number}
+- Outstanding Amount: MUR ${aodData.outstanding_amount.toLocaleString()}
+- Payment Method: ${paymentMethodText}
+- Agreement Date: ${new Date(aodData.agreement_date).toLocaleDateString()}
+- Status: Active
+${installmentText}
+
+Important Information:
+- The attached PDF is a legally binding agreement
+- Please keep this document for your records
+- You will receive reminders before each payment due date
+- If you have any questions, please contact our customer service team
+
+We appreciate your commitment to resolving this matter and look forward to your continued partnership with NIC Life Insurance Mauritius.
+
+Best regards,
+NIC Life Insurance Mauritius
+Customer Service Team
+
+---
+NIC Centre, 217 Royal Road, Curepipe, Mauritius
+This is an automated message. Please do not reply to this email.
+    `.trim()
+  }
+
+  generateInstallmentTableHTML(installments) {
+    if (!installments || installments.length === 0) return ''
+
+    const rows = installments.map(installment => `
+      <tr>
+        <td>${installment.installment_number}</td>
+        <td>${new Date(installment.due_date).toLocaleDateString()}</td>
+        <td>MUR ${installment.amount.toLocaleString()}</td>
+        <td>${installment.status}</td>
+      </tr>
+    `).join('')
+
+    return `
+      <div class="info-box">
+        <h3 style="margin-top: 0; color: #003366;">Payment Schedule</h3>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Due Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <p><em>You will receive individual payment reminders with QR codes for each installment.</em></p>
+      </div>
+    `
+  }
+
+  getPaymentMethodDescription(aodData) {
+    switch (aodData.payment_method) {
+      case 'installments':
+        return `Monthly Installments (${aodData.total_installments} payments of MUR ${aodData.installment_amount.toLocaleString()})`
+      case 'fund_deduction':
+        return `Fund Value Deduction (MUR ${aodData.fund_deduction_amount.toLocaleString()} from Policy ${aodData.fund_policy_number})`
+      case 'benefits_transfer':
+        return `Benefits Transfer (From Policy ${aodData.source_policy_number} to Policy ${aodData.target_policy_number})`
+      default:
+        return 'Payment arrangement as agreed'
+    }
+  }
+
+  // Convert blob to base64 for email attachment
+  async blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        // Remove data:application/pdf;base64, prefix for Brevo
+        const base64 = reader.result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
+
   async sendPasswordResetEmail(email, name, otp) {
     try {
       const htmlContent = `

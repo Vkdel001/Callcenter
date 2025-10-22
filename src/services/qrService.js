@@ -130,9 +130,9 @@ class QRService {
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
       
-      // Set canvas size (compact design)
+      // Set canvas size (more compact design)
       canvas.width = 400
-      canvas.height = 480
+      canvas.height = 440
       
       // White background
       ctx.fillStyle = '#ffffff'
@@ -184,27 +184,16 @@ class QRService {
           ctx.font = 'bold 20px Arial'
           ctx.fillText(`Amount: ${customerData.amountDue.toLocaleString()}`, canvas.width / 2, 355)
           
-          // Policy Number
-          ctx.font = '16px Arial'
-          ctx.fillText(`Policy No: ${customerData.policyNumber}`, canvas.width / 2, 380)
-          
-          // Generated timestamp
-          ctx.font = '14px Arial'
-          ctx.fillStyle = '#999999'
-          const now = new Date()
-          const timestamp = now.toISOString().slice(0, 16).replace('T', ' ')
-          ctx.fillText(`Generated: ${timestamp}`, canvas.width / 2, 410)
-          
           // Powered by text
           ctx.font = '12px Arial'
           ctx.fillStyle = '#666666'
-          ctx.fillText('Powered by', canvas.width / 2, 435)
+          ctx.fillText('Powered by', canvas.width / 2, 385)
           
           // Draw ZwennPay logo
           const zwennWidth = 120
           const zwennHeight = 35
           const zwennX = (canvas.width - zwennWidth) / 2
-          ctx.drawImage(zwennPayLogo, zwennX, 445, zwennWidth, zwennHeight)
+          ctx.drawImage(zwennPayLogo, zwennX, 395, zwennWidth, zwennHeight)
           
           // Convert canvas to data URL
           resolve(canvas.toDataURL('image/png'))

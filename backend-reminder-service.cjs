@@ -31,7 +31,7 @@ const CONFIG = {
   
   // Logging
   LOG_FILE: '/var/log/nic-reminder-service.log',
-  DEBUG: process.env.NODE_ENV !== 'production'
+  DEBUG: true
 };
 
 class Logger {
@@ -236,7 +236,18 @@ class ReminderService {
       for (const installment of overdueInstallments) {
         const customer = customers.find(c => c.id === installment.customer_id);
         
+        Logger.info('DEBUG: Processing installment', { 
+          installmentId: installment.id, 
+          customerId: installment.customer_id,
+          customerFound: !!customer,
+          customerEmail: customer ? customer.email : 'NO_CUSTOMER'
+        });
+        
         if (customer && customer.email) {
+          Logger.info('DEBUG: Sending email to customer', { 
+            customerId: customer.id, 
+            email: customer.email 
+          });
           await this.sendPaymentReminder(customer, installment);
           
           // Update reminder count

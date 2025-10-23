@@ -528,74 +528,120 @@ class ReminderService {
     }
   }
 
-  static async generateQRSection(customer, installment) {
-    try {
-      const qrResult = await ZwennPayQRService.generatePaymentQR(customer, installment);
-      if (qrResult.success) {
-        Logger.info('QR code generated successfully', { 
-          customerId: customer.id, 
-          installmentId: installment.id
-        });
-        
-        return `
-        <div style="text-align: center; margin: 20px 0;">
-          <p><strong>Scan to Pay via ZwennPay:</strong></p>
-          <img src="${qrResult.qrImageUrl}" alt="ZwennPay QR Code" style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; max-width: 200px;">
-          <p style="font-size: 12px; color: #666;">Merchant ID: ${qrResult.merchantId} | Amount: MUR ${qrResult.amount}</p>
-          ${qrResult.testMode ? '<p style="font-size: 10px; color: #f59e0b;">Test Mode</p>' : ''}
-          <p style="font-size: 12px; color: #666;">Powered by ZwennPay</p>
-        </div>
-        `;
-      }
-    } catch (error) {
-      Logger.error('Failed to generate QR code', { customerId: customer.id, error: error.message });
+  static generateQRSection(customer, installment) {
+    // Use existing QR code from database (generated when installment was created)
+    if (installment.qr_code_url) {
+      Logger.info('Using existing QR code from database', { 
+        customerId: customer.id, 
+        installmentId: installment.id,
+        qrCodeUrl: installment.qr_code_url
+      });
+      
+      return `
+      <div style="text-align: center; margin: 20px 0; background: white; padding: 20px; border-radius: 8px; border: 2px solid #e5e7eb;">
+        <h3 style="margin-top: 0; color: #1e3a8a;">Quick Payment via QR Code</h3>
+        <img src="${installment.qr_code_url}" alt="Payment QR Code" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;">
+        <p style="margin: 15px 0 5px 0; font-size: 14px; color: #666;">
+          Scan this QR code with your mobile banking app to pay instantly
+        </p>
+        <p style="font-size: 12px; color: #666;">Powered by ZwennPay</p>
+      </div>
+      `;
+    } else {
+      Logger.warn('No QR code available for installment', { 
+        customerId: customer.id, 
+        installmentId: installment.id 
+      });
+      return '';
     }
-    
-    // Fallback if QR generation fails
-    return `
-    <div style="text-align: center; margin: 20px 0; padding: 20px; border: 2px dashed #ccc;">
-      <p style="color: #666;">QR Code temporarily unavailable</p>
-      <p style="font-size: 12px; color: #666;">Please use the "Pay Now Online" button above</p>
-    </div>
-    `;
   }
 
   static async sendPaymentReminder(customer, installment) {
     const subject = `Payment Reminder - NIC Life Insurance`;
+    const reminderUrl = `https://payments.niclmauritius.site/reminder/${installment.id}`;
+    const dueDate = new Date(installment.due_date).toLocaleDateString();
+    const isOverdue = new Date(installment.due_date) < new Date();
+    const statusText = isOverdue ? 'OVERDUE' : 'DUE SOON';
+    const statusColor = isOverdue ? '#dc2626' : '#f59e0b';
+    
     const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1e40af;">Payment Reminder</h2>
-        <p>Dear ${customer.name || 'Valued Customer'},</p>
-        <p>This is a friendly reminder that your payment is overdue.</p>
-        
-        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">Payment Details:</h3>
-          <p><strong>Amount Due:</strong> MUR ${installment.amount}</p>
-          <p><strong>Due Date:</strong> ${new Date(installment.due_date).toLocaleDateString()}</p>
-          <p><strong>Policy Number:</strong> ${customer.policy_number || 'N/A'}</p>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Reminder</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 0 auto; }
+          .header { background: #1e3a8a; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; }
+          .status-banner { padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; background: ${statusColor}; color: white; }
+          .payment-details { background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .amount { font-size: 28px; font-weight: bold; color: #1e3a8a; text-align: center; margin: 20px 0; }
+          .qr-section { background: white; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; border: 2px solid #e5e7eb; }
+          .qr-code { max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px; }
+          .cta-button { display: inline-block; background: #16a34a; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 15px 10px; font-size: 16px; }
+          .secondary-button { display: inline-block; background: #1e3a8a; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 15px 10px; font-size: 16px; }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; border-top: 1px solid #eee; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>NIC Life Insurance Mauritius</h1>
+            <p>Payment Reminder</p>
+          </div>
+          
+          <div class="content">
+            <div class="status-banner">
+              <h2 style="margin: 0;">Payment ${statusText}</h2>
+              <p style="margin: 5px 0 0 0;">Installment ${installment.installment_number || 1}</p>
+            </div>
+
+            <p>Dear <strong>${customer.name || 'Valued Customer'}</strong>,</p>
+            
+            <p>This is a reminder that your installment payment is ${isOverdue ? 'overdue' : 'due soon'}.</p>
+            
+            <div class="payment-details">
+              <p><strong>Policy Number:</strong> ${customer.policy_number || 'N/A'}</p>
+              <p><strong>Due Date:</strong> ${dueDate}</p>
+              <p><strong>Amount:</strong> MUR ${installment.amount}</p>
+            </div>
+
+            <div class="amount">MUR ${installment.amount.toLocaleString()}</div>
+            
+            ${this.generateQRSection(customer, installment)}
+            
+            <div style="text-align: center; margin: 30px 0;">
+              ${installment.qr_code_url ? `
+                <a href="${reminderUrl}" class="cta-button">📱 Scan QR Code to Pay</a>
+              ` : ''}
+              <a href="${reminderUrl}" class="secondary-button">🔗 View Payment Details</a>
+            </div>
+            
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 6px; border-left: 4px solid #0ea5e9; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px;">
+                <strong>💡 Payment Options:</strong><br>
+                ${installment.qr_code_url ? '• Scan the QR code above with your mobile banking app<br>' : ''}
+                • Click the buttons above to access your payment page<br>
+                • Contact our customer service for assistance
+              </p>
+            </div>
+            
+            <p>If you have any questions, please contact our customer service team.</p>
+            
+            <p>Best regards,<br>
+            <strong>NIC Life Insurance Mauritius</strong></p>
+          </div>
+          
+          <div class="footer">
+            <p>NIC Centre, 217 Royal Road, Curepipe, Mauritius</p>
+            <p>This is an automated reminder. Please do not reply to this email.</p>
+          </div>
         </div>
-        
-        <p>Please make your payment as soon as possible to avoid any service interruption.</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <p><strong>Quick Payment Options:</strong></p>
-          <a href="https://payments.niclmauritius.site/reminder/${installment.id}" style="background-color: #1e40af; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Pay Now Online
-          </a>
-        </div>
-        
-        ${await this.generateQRSection(customer, installment)}
-        
-        <p>If you have any questions, please contact us at:</p>
-        <p>📞 Phone: +230-212-3456<br>
-        📧 Email: ${CONFIG.SENDER_EMAIL}<br>
-        🌐 Website: https://payments.niclmauritius.site</p>
-        
-        <p>Thank you for your attention to this matter.</p>
-        
-        <p>Best regards,<br>
-        <strong>NIC Life Insurance Mauritius</strong></p>
-      </div>
+      </body>
+      </html>
     `;
 
     try {

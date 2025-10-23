@@ -247,8 +247,8 @@ class ReminderService {
         // Find payment plan for this installment (by ID)
         const paymentPlan = paymentPlans.find(plan => plan.id === installment.payment_plan);
         
-        // Find customer for this payment plan (by policy number)
-        const customer = paymentPlan ? customers.find(c => c.policy_number === paymentPlan.customer) : null;
+        // Find customer for this payment plan (by email)
+        const customer = paymentPlan ? customers.find(c => c.email === paymentPlan.customer) : null;
         
         Logger.info('DEBUG: Processing installment', { 
           installmentId: installment.id, 

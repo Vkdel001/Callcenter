@@ -528,6 +528,38 @@ class ReminderService {
     }
   }
 
+  static async generateQRSection(customer, installment) {
+    try {
+      const qrResult = await ZwennPayQRService.generatePaymentQR(customer, installment);
+      if (qrResult.success) {
+        Logger.info('QR code generated successfully', { 
+          customerId: customer.id, 
+          installmentId: installment.id
+        });
+        
+        return `
+        <div style="text-align: center; margin: 20px 0;">
+          <p><strong>Scan to Pay via ZwennPay:</strong></p>
+          <img src="${qrResult.qrImageUrl}" alt="ZwennPay QR Code" style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; max-width: 200px;">
+          <p style="font-size: 12px; color: #666;">Merchant ID: ${qrResult.merchantId} | Amount: MUR ${qrResult.amount}</p>
+          ${qrResult.testMode ? '<p style="font-size: 10px; color: #f59e0b;">Test Mode</p>' : ''}
+          <p style="font-size: 12px; color: #666;">Powered by ZwennPay</p>
+        </div>
+        `;
+      }
+    } catch (error) {
+      Logger.error('Failed to generate QR code', { customerId: customer.id, error: error.message });
+    }
+    
+    // Fallback if QR generation fails
+    return `
+    <div style="text-align: center; margin: 20px 0; padding: 20px; border: 2px dashed #ccc;">
+      <p style="color: #666;">QR Code temporarily unavailable</p>
+      <p style="font-size: 12px; color: #666;">Please use the "Pay Now Online" button above</p>
+    </div>
+    `;
+  }
+
   static async sendPaymentReminder(customer, installment) {
     const subject = `Payment Reminder - NIC Life Insurance`;
     const htmlContent = `
@@ -547,19 +579,12 @@ class ReminderService {
         
         <div style="text-align: center; margin: 30px 0;">
           <p><strong>Quick Payment Options:</strong></p>
-          <a href="https://payments.niclmauritius.site/payment/${customer.id}" style="background-color: #1e40af; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          <a href="https://payments.niclmauritius.site/reminder/${installment.id}" style="background-color: #1e40af; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
             Pay Now Online
           </a>
         </div>
         
-        <div style="text-align: center; margin: 20px 0;">
-          <p>Or scan this QR code to pay via ZwennPay:</p>
-          <div id="qr-placeholder" style="padding: 20px; border: 2px dashed #ccc; margin: 10px auto; width: 200px;">
-            <p style="color: #666; margin: 0;">QR Code will be generated</p>
-            <p style="color: #666; margin: 5px 0 0 0; font-size: 12px;">Amount: MUR ${installment.amount}</p>
-          </div>
-          <p style="font-size: 12px; color: #666;">Powered by ZwennPay</p>
-        </div>
+        ${await this.generateQRSection(customer, installment)}
         
         <p>If you have any questions, please contact us at:</p>
         <p>📞 Phone: +230-212-3456<br>
@@ -589,7 +614,11 @@ class ReminderService {
   }
 
   static async sendPaymentSMS(customer, installment) {
-    const message = `NIC Life Insurance: Payment reminder for MUR ${installment.amount} due ${new Date(installment.due_date).toLocaleDateString()}. Pay online: https://payments.niclmauritius.site/payment/${customer.id}`;
+    const reminderUrl = `https://payments.niclmauritius.site/reminder/${installment.id}`;
+    const dueDate = new Date(installment.due_date).toLocaleDateString();
+    const isOverdue = new Date(installment.due_date) < new Date();
+    
+    const message = `NIC Life Insurance: ${isOverdue ? 'OVERDUE' : 'Payment Due'} - MUR ${installment.amount} ${isOverdue ? 'was' : ''} due ${dueDate}. Pay now: ${reminderUrl}`;
 
     try {
       await BrevoSMSService.sendSMS(customer.mobile, message);

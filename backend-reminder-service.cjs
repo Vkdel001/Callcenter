@@ -137,6 +137,15 @@ class XanoAPI {
     }
   }
   
+  static async getPaymentPlans() {
+    try {
+      return await this.makeRequest(`${CONFIG.XANO_PAYMENT_API}/nic_cc_payment_plan`);
+    } catch (error) {
+      Logger.error('Failed to fetch payment plans', error);
+      return [];
+    }
+  }
+  
   static async updateCustomer(customerId, data) {
     try {
       return await this.makeRequest(`${CONFIG.XANO_CUSTOMER_API}/nic_cc_customer/${customerId}`, 'PATCH', data);
@@ -222,6 +231,7 @@ class ReminderService {
     try {
       const customers = await XanoAPI.getCustomers();
       const installments = await XanoAPI.getInstallments();
+      const paymentPlans = await XanoAPI.getPaymentPlans();
       
       const overdueInstallments = installments.filter(installment => {
         const dueDate = new Date(installment.due_date);
@@ -234,11 +244,16 @@ class ReminderService {
       Logger.info(`Found ${overdueInstallments.length} overdue installments`);
       
       for (const installment of overdueInstallments) {
-        const customer = customers.find(c => c.id === installment.customer_id);
+        // Find payment plan for this installment
+        const paymentPlan = paymentPlans.find(plan => plan.policy_number === installment.payment_plan);
+        
+        // Find customer for this payment plan
+        const customer = paymentPlan ? customers.find(c => c.policy_number === paymentPlan.customer) : null;
         
         Logger.info('DEBUG: Processing installment', { 
           installmentId: installment.id, 
-          customerId: installment.customer_id,
+          paymentPlan: installment.payment_plan,
+          paymentPlanFound: !!paymentPlan,
           customerFound: !!customer,
           customerEmail: customer ? customer.email : 'NO_CUSTOMER'
         });

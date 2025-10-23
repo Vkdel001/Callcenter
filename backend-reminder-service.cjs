@@ -244,10 +244,10 @@ class ReminderService {
       Logger.info(`Found ${overdueInstallments.length} overdue installments`);
       
       for (const installment of overdueInstallments) {
-        // Find payment plan for this installment
-        const paymentPlan = paymentPlans.find(plan => plan.policy_number === installment.payment_plan);
+        // Find payment plan for this installment (by ID)
+        const paymentPlan = paymentPlans.find(plan => plan.id === installment.payment_plan);
         
-        // Find customer for this payment plan
+        // Find customer for this payment plan (by policy number)
         const customer = paymentPlan ? customers.find(c => c.policy_number === paymentPlan.customer) : null;
         
         Logger.info('DEBUG: Processing installment', { 

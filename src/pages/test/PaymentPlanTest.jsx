@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { paymentPlanService } from '../../services/paymentPlanService'
 import { installmentService } from '../../services/installmentService'
-import { Play, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react'
+import { emailService } from '../../services/emailService'
+import { Play, CheckCircle, XCircle, Clock, DollarSign, MessageSquare, Mail } from 'lucide-react'
 
 const PaymentPlanTest = () => {
   const [testData, setTestData] = useState({
@@ -16,6 +17,10 @@ const PaymentPlanTest = () => {
   const [loading, setLoading] = useState({})
   const [createdPlan, setCreatedPlan] = useState(null)
   const [installments, setInstallments] = useState([])
+  const [smsTestData, setSmsTestData] = useState({
+    mobile: '+23012345678',
+    message: 'Test SMS from NIC Life Insurance - Payment reminder system working!'
+  })
 
   const updateTestData = (field, value) => {
     setTestData(prev => ({
@@ -146,6 +151,42 @@ const PaymentPlanTest = () => {
     })
   }
 
+  const testSMS = async () => {
+    return runTest('smsTest', async () => {
+      const result = await emailService.sendSMS({
+        to: smsTestData.mobile,
+        message: smsTestData.message,
+        sender: 'NIC Life'
+      })
+      return result
+    })
+  }
+
+  const testInstallmentReminder = async () => {
+    if (!createdPlan || !installments.length) {
+      alert('Please create a payment plan with installments first')
+      return
+    }
+
+    return runTest('reminderTest', async () => {
+      const customer = {
+        name: 'Test Customer',
+        email: 'test@example.com',
+        mobile: smsTestData.mobile
+      }
+      
+      const reminderUrl = `${window.location.origin}/reminder/${installments[0].id}`
+      
+      const result = await emailService.sendInstallmentReminder(
+        customer,
+        installments[0],
+        createdPlan,
+        reminderUrl
+      )
+      return result
+    })
+  }
+
   const testFullWorkflow = async () => {
     setResults({})
     setCreatedPlan(null)
@@ -256,6 +297,33 @@ const PaymentPlanTest = () => {
           </div>
         </div>
 
+        {/* SMS Test Configuration */}
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
+          <h3 className="font-medium text-green-900 mb-3">SMS Testing Configuration</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+              <input
+                type="text"
+                value={smsTestData.mobile}
+                onChange={(e) => setSmsTestData(prev => ({ ...prev, mobile: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="+23012345678"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Test Message</label>
+              <input
+                type="text"
+                value={smsTestData.message}
+                onChange={(e) => setSmsTestData(prev => ({ ...prev, message: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="Test message"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Test Buttons */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           <button
@@ -304,6 +372,24 @@ const PaymentPlanTest = () => {
           </button>
           
           <button
+            onClick={testSMS}
+            disabled={loading.smsTest}
+            className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+          >
+            {loading.smsTest ? <Clock className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+            <span className="ml-2">Test SMS</span>
+          </button>
+          
+          <button
+            onClick={testInstallmentReminder}
+            disabled={loading.reminderTest || !createdPlan}
+            className="flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+          >
+            {loading.reminderTest ? <Clock className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            <span className="ml-2">Test Reminder</span>
+          </button>
+          
+          <button
             onClick={testFullWorkflow}
             disabled={Object.values(loading).some(Boolean)}
             className="col-span-2 md:col-span-3 lg:col-span-2 flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
@@ -322,6 +408,8 @@ const PaymentPlanTest = () => {
           <ResultDisplay testName="Payment Plan Creation" result={results.createPlan} />
           <ResultDisplay testName="Installments Creation" result={results.createInstallments} />
           <ResultDisplay testName="Get Installments" result={results.getInstallments} />
+          <ResultDisplay testName="SMS Test" result={results.smsTest} />
+          <ResultDisplay testName="Reminder Test" result={results.reminderTest} />
         </div>
 
         {/* Created Plan Display */}

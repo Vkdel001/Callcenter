@@ -20,7 +20,7 @@ export const installmentService = {
         const qrCodeData = await qrService.generatePaymentQR(customerData)
         
         const installment = {
-          payment_plan_id: paymentPlanId,
+          payment_plan: paymentPlanId,  // Changed from payment_plan_id to payment_plan
           ...installmentData,
           qr_code_data: qrCodeData.success ? qrCodeData.qrData : null,
           qr_code_url: qrCodeData.success ? qrCodeData.qrCodeUrl : null,
@@ -42,10 +42,27 @@ export const installmentService = {
   // Get all installments for a payment plan
   async getPaymentPlanInstallments(paymentPlanId) {
     try {
-      const response = await paymentApi.get('/nic_cc_installment', {
-        params: { payment_plan_id: paymentPlanId }
-      })
-      return response.data || []
+      console.log(`🔍 Getting installments for payment plan: ${paymentPlanId}`)
+      
+      // Get ALL installments and filter in JavaScript (Xano filtering not working properly)
+      const response = await paymentApi.get('/nic_cc_installment')
+      const allInstallments = response.data || []
+      
+      console.log(`📊 Total installments in database: ${allInstallments.length}`)
+      
+      // Filter for this specific payment plan
+      const planInstallments = allInstallments.filter(installment => 
+        installment.payment_plan === parseInt(paymentPlanId)
+      )
+      
+      console.log(`✅ Installments for payment plan ${paymentPlanId}: ${planInstallments.length}`)
+      
+      if (planInstallments.length > 20) {
+        console.error(`⚠️ WARNING: Found ${planInstallments.length} installments for payment plan ${paymentPlanId}. This seems excessive!`)
+        console.error('First few installments:', planInstallments.slice(0, 3))
+      }
+      
+      return planInstallments
     } catch (error) {
       console.error('Error fetching installments:', error)
       throw error
@@ -59,6 +76,17 @@ export const installmentService = {
       return response.data
     } catch (error) {
       console.error('Error fetching installment:', error)
+      throw error
+    }
+  },
+
+  // Update installment
+  async updateInstallment(installmentId, updateData) {
+    try {
+      const response = await paymentApi.patch(`/nic_cc_installment/${installmentId}`, updateData)
+      return response.data
+    } catch (error) {
+      console.error('Error updating installment:', error)
       throw error
     }
   },

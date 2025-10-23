@@ -3,13 +3,15 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
-import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText, Bell } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { useAuth } from '../../contexts/AuthContext'
 import AODModal from '../../components/modals/PaymentPlanModal'
 import { paymentPlanService } from '../../services/paymentPlanService'
 import { installmentService } from '../../services/installmentService'
 import { aodPdfService } from '../../services/aodPdfService'
+import { reminderService } from '../../services/reminderService'
+import { signatureReminderService } from '../../services/signatureReminderService'
 
 const CustomerDetail = () => {
   const { id } = useParams()
@@ -19,6 +21,8 @@ const CustomerDetail = () => {
   const [qrData, setQrData] = useState(null)
   const [showAODModal, setShowAODModal] = useState(false)
   const [downloadingAOD, setDownloadingAOD] = useState(false)
+  const [sendingReminder, setSendingReminder] = useState(false)
+  const [markingSignature, setMarkingSignature] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
@@ -59,6 +63,13 @@ const CustomerDetail = () => {
     ['customerAOD', id],
     () => paymentPlanService.getCustomerActiveAOD(id),
     { enabled: !!id }
+  )
+
+  // Get customer's pending installments
+  const { data: pendingInstallments } = useQuery(
+    ['customerInstallments', existingAOD?.id],
+    () => installmentService.getPaymentPlanInstallments(existingAOD.id),
+    { enabled: !!existingAOD?.id }
   )
 
   const { data: callLogs = [], isLoading: callLogsLoading } = useQuery(
@@ -195,6 +206,82 @@ const CustomerDetail = () => {
     }
   }
 
+  const handleMarkSignatureReceived = async () => {
+    if (!existingAOD) return
+
+    const confirmed = confirm(
+      `Are you sure you have received the signed AOD document from ${customer.name}?\n\n` +
+      `This will:\n` +
+      `• Activate the payment plan\n` +
+      `• Recalculate payment dates from today\n` +
+      `• Start sending payment reminders\n\n` +
+      `This action cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    setMarkingSignature(true)
+    try {
+      const result = await signatureReminderService.markSignatureReceived(existingAOD.id, user.id)
+      
+      if (result.success) {
+        alert('✅ AOD signature confirmed!\n\nPayment plan is now active and reminders will begin as scheduled.')
+        // Refresh all related data
+        queryClient.invalidateQueries(['customer', id])
+        queryClient.invalidateQueries(['customerAOD', id])
+        queryClient.invalidateQueries(['customerInstallments'])
+      } else {
+        alert(`Failed to confirm signature: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to mark signature received:', error)
+      alert(`Failed to confirm signature: ${error.message}`)
+    } finally {
+      setMarkingSignature(false)
+    }
+  }
+
+  const handleSendReminder = async () => {
+    if (!pendingInstallments || pendingInstallments.length === 0) {
+      alert('No pending installments found for this customer')
+      return
+    }
+
+    // Find the next due installment
+    const nextInstallment = pendingInstallments
+      .filter(i => i.status === 'pending')
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0]
+
+    if (!nextInstallment) {
+      alert('No pending installments found')
+      return
+    }
+
+    setSendingReminder(true)
+    try {
+      const result = await reminderService.sendInstallmentReminder(nextInstallment.id)
+      
+      if (result.success) {
+        const emailSuccess = result.reminderResult.results.email.success
+        const smsSuccess = result.reminderResult.results.sms.success
+        
+        let message = 'Reminder sent successfully!\n'
+        if (emailSuccess) message += '✓ Email sent\n'
+        if (smsSuccess) message += '✓ SMS sent\n'
+        if (!emailSuccess && !smsSuccess) message = 'Failed to send reminder'
+        
+        alert(message)
+      } else {
+        alert('Failed to send reminder')
+      }
+    } catch (error) {
+      console.error('Failed to send reminder:', error)
+      alert(`Failed to send reminder: ${error.message}`)
+    } finally {
+      setSendingReminder(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -230,14 +317,29 @@ const CustomerDetail = () => {
 
         <div className="flex space-x-3">
           {existingAOD ? (
-            <button
-              onClick={handleDownloadExistingAOD}
-              disabled={downloadingAOD}
-              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              {downloadingAOD ? 'Downloading...' : 'Download AOD PDF'}
-            </button>
+            <>
+              <button
+                onClick={handleDownloadExistingAOD}
+                disabled={downloadingAOD}
+                className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {downloadingAOD ? 'Downloading...' : 'Download AOD PDF'}
+              </button>
+              
+              {existingAOD.payment_method === 'installments' && 
+               existingAOD.signature_status === 'received' && 
+               pendingInstallments?.some(i => i.status === 'pending') && (
+                <button
+                  onClick={handleSendReminder}
+                  disabled={sendingReminder}
+                  className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+                >
+                  <Bell className="h-4 w-4 mr-2" />
+                  {sendingReminder ? 'Sending...' : 'Send Reminder'}
+                </button>
+              )}
+            </>
           ) : (
             <button
               onClick={() => setShowAODModal(true)}
@@ -303,14 +405,176 @@ const CustomerDetail = () => {
                     {customer.status}
                   </span>
                   {existingAOD && (
-                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                      AOD Active
-                    </span>
+                    <>
+                      {existingAOD.signature_status === 'pending_signature' ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                          AOD Pending Signature
+                        </span>
+                      ) : existingAOD.signature_status === 'expired' ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                          AOD Expired
+                        </span>
+                      ) : existingAOD.signature_status === 'received' ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                          AOD Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                          AOD Legacy
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
             </div>
           </div>
+
+          {/* AOD Details */}
+          {existingAOD && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">AOD Agreement Details</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">AOD ID</label>
+                  <p className="mt-1 text-sm text-gray-900">{existingAOD.id}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+                  <p className="mt-1 text-sm text-gray-900 capitalize">{existingAOD.payment_method?.replace('_', ' ')}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Outstanding Amount</label>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">MUR {existingAOD.outstanding_amount?.toLocaleString()}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Agreement Date</label>
+                  <p className="mt-1 text-sm text-gray-900">{new Date(existingAOD.agreement_date).toLocaleDateString()}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Signature Status</label>
+                  <div className="mt-1">
+                    {(() => {
+                      // Proper signature status based on database fields
+                      if (existingAOD.signature_status === 'pending_signature') {
+                        const deadline = new Date(existingAOD.signature_deadline)
+                        const daysLeft = Math.ceil((deadline - new Date()) / (1000 * 60 * 60 * 24))
+                        
+                        return (
+                          <div className="space-y-2">
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                              Waiting for Customer Signature
+                            </span>
+                            <div className="text-xs text-gray-500">
+                              {daysLeft > 0 ? `${daysLeft} days remaining` : 'Overdue'}
+                            </div>
+                          </div>
+                        )
+                      } else if (existingAOD.signature_status === 'expired') {
+                        return (
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                            Expired - No Signature Received
+                          </span>
+                        )
+                      } else if (existingAOD.signature_status === 'received') {
+                        return (
+                          <div className="space-y-1">
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                              Signed & Active
+                            </span>
+                            {existingAOD.signature_received_date && (
+                              <div className="text-xs text-gray-500">
+                                Received: {new Date(existingAOD.signature_received_date).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      } else {
+                        // Handle legacy AODs (no signature_status field)
+                        return (
+                          <div className="space-y-1">
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                              Legacy AOD (Pre-Signature Workflow)
+                            </span>
+                            <div className="text-xs text-gray-500">
+                              Created before signature requirement
+                            </div>
+                          </div>
+                        )
+                      }
+                    })()}
+                  </div>
+                </div>
+
+                {existingAOD.payment_method === 'installments' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Payment Schedule</label>
+                    <div className="mt-1 text-sm text-gray-900">
+                      {existingAOD.total_installments} installments of MUR {existingAOD.installment_amount?.toLocaleString()}
+                      {existingAOD.start_date && (
+                        <div className="text-xs text-gray-500">
+                          Starting: {new Date(existingAOD.start_date).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Signature Action Buttons */}
+              {existingAOD.signature_status === 'pending_signature' && (
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">Customer Signature Required</h4>
+                      <p className="text-sm text-gray-600">
+                        Click the button below when you receive the signed AOD document from the customer.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleMarkSignatureReceived}
+                      disabled={markingSignature}
+                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {markingSignature ? 'Processing...' : 'AOD Signed Copy Received'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy AOD Conversion */}
+              {!existingAOD.signature_status && !existingAOD.signature_deadline && user?.role === 'admin' && (
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">Legacy AOD Detected</h4>
+                      <p className="text-sm text-gray-600">
+                        This AOD was created before the signature workflow. You can mark it as already signed to enable reminders.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm('Mark this legacy AOD as already signed and activate reminders?')) {
+                          handleMarkSignatureReceived()
+                        }
+                      }}
+                      disabled={markingSignature}
+                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {markingSignature ? 'Processing...' : 'Mark as Signed (Legacy)'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Call Log Form */}
           <div className="bg-white rounded-lg shadow p-6">

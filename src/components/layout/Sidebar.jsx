@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, BarChart3, Upload, Shield, QrCode, Building2 } from 'lucide-react'
+import { Home, Users, BarChart3, Upload, Shield, QrCode, Building2, Clock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const Sidebar = () => {
@@ -19,7 +19,8 @@ const Sidebar = () => {
     { to: '/admin/upload', icon: Upload, label: 'Upload Data' },
     { to: '/admin/reports', icon: BarChart3, label: 'Reports' },
     { to: '/admin/agents', icon: Users, label: 'Manage Agents' },
-    { to: '/admin/branches', icon: Building2, label: 'Manage Branches' }
+    { to: '/admin/branches', icon: Building2, label: 'Manage Branches' },
+    { to: '/admin/scheduler', icon: Clock, label: 'Reminder Scheduler' }
   ]
 
   const navItems = user?.role === 'admin' ? adminNavItems : agentNavItems

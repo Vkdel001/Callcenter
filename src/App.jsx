@@ -1,5 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
+import { initializeScheduler, cleanupScheduler } from './utils/schedulerInit'
+import { initializeDatabaseCheck } from './utils/databaseFieldChecker'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
@@ -15,10 +18,36 @@ import Reports from './pages/admin/Reports'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AgentManagement from './pages/admin/AgentManagement'
 import BranchManagement from './pages/admin/BranchManagement'
+import ReminderScheduler from './pages/admin/ReminderScheduler'
 import QuickQRGenerator from './pages/QuickQRGenerator'
 import PaymentPlanTest from './pages/test/PaymentPlanTest'
+import InstallmentReminder from './pages/InstallmentReminder'
 
 function App() {
+  // Initialize scheduler and check database when app starts
+  useEffect(() => {
+    const initialize = async () => {
+      // Check database schema first
+      const dbCheck = await initializeDatabaseCheck()
+
+      // Make database check available globally for debugging
+      if (import.meta.env.DEV) {
+        window.dbCheck = dbCheck
+        console.log('🔧 Database check available as window.dbCheck')
+      }
+
+      // Initialize scheduler
+      initializeScheduler()
+    }
+
+    initialize()
+
+    // Cleanup when app unmounts
+    return () => {
+      cleanupScheduler()
+    }
+  }, [])
+
   return (
     <AuthProvider>
       <Routes>
@@ -41,8 +70,12 @@ function App() {
           <Route path="admin/reports" element={<Reports />} />
           <Route path="admin/agents" element={<AgentManagement />} />
           <Route path="admin/branches" element={<BranchManagement />} />
+          <Route path="admin/scheduler" element={<ReminderScheduler />} />
           <Route path="test/payment-plan" element={<PaymentPlanTest />} />
         </Route>
+
+        {/* Public reminder pages - outside protected routes */}
+        <Route path="/reminder/:installmentId" element={<InstallmentReminder />} />
       </Routes>
     </AuthProvider>
   )

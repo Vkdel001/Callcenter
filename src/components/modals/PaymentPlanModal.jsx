@@ -74,11 +74,13 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
   const createPlanMutation = useMutation(
     async (planData) => {
       // Step 1: Check for existing active AOD for this policy
+      console.log(`🔍 Checking for existing AOD for policy: ${planData.policy_number}`)
       const existingPlan = await paymentPlanService.getActivePlanForPolicy(planData.policy_number)
 
       if (existingPlan) {
+        console.log('📋 Found existing AOD:', existingPlan)
         const confirmReplace = window.confirm(
-          `An active AOD already exists for policy ${planData.policy_number} (ID: ${existingPlan.id}).\n\nDo you want to replace it with the new AOD agreement?`
+          `An active AOD already exists for policy ${planData.policy_number} (ID: ${existingPlan.id}).\n\nStatus: ${existingPlan.status}\nSignature Status: ${existingPlan.signature_status || 'N/A'}\n\nDo you want to replace it with the new AOD agreement?`
         )
 
         if (!confirmReplace) {
@@ -89,12 +91,21 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
         await paymentPlanService.cancelPaymentPlan(existingPlan.id)
       }
 
-      // Step 2: Create new payment plan
-      const plan = await paymentPlanService.createPaymentPlan(planData)
+      // Step 2: Create new payment plan with signature workflow
+      const planDataWithSignature = {
+        ...planData,
+        signature_status: 'pending_signature',
+        signature_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        signature_reminder_count: 0,
+        created_by_agent: parseInt(user?.id) || 0
+      }
+      
+      const plan = await paymentPlanService.createPaymentPlan(planDataWithSignature)
 
       // Step 3: Create installments with QR codes (only for installment payments)
+      // Note: Installments are created but won't be active until signature is received
       let installments = []
-      if (planData.payment_method === 'installments') {
+      if (planDataWithSignature.payment_method === 'installments') {
         installments = await installmentService.createInstallments(plan.id, schedule)
       }
 
@@ -104,7 +115,10 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
       onSuccess: ({ plan, installments }) => {
         setCreatedPlan({ ...plan, installments })
         setStep(3)
+        // Refresh all customer-related data
         queryClient.invalidateQueries(['customer', customer.id])
+        queryClient.invalidateQueries(['customerAOD', customer.id])
+        queryClient.invalidateQueries(['customerInstallments'])
         queryClient.invalidateQueries('customers')
       },
       onError: (error) => {
@@ -617,8 +631,10 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
               <div>
                 <h3 className="text-lg font-medium text-gray-900">AOD Agreement Created Successfully!</h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  AOD ID: {createdPlan.id} | Payment Method: {createdPlan.payment_method}
-                  {createdPlan.installments?.length > 0 && ` | ${createdPlan.installments.length} installments with QR codes generated`}
+                  AOD ID: {createdPlan.id} | Status: Pending Customer Signature
+                </p>
+                <p className="text-sm text-orange-600 mt-1 font-medium">
+                  ⚠️ Payment reminders will start only after customer returns signed document
                 </p>
               </div>
 
@@ -647,9 +663,10 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
 
                 <ul className="text-sm text-green-800 space-y-1">
                   <li>• Download the AOD PDF for your records</li>
-                  <li>• Email the PDF directly to the customer</li>
-                  <li>• Customer will receive payment reminders automatically</li>
-                  <li>• Monitor payment status in customer dashboard</li>
+                  <li>• Email the PDF to customer for signature</li>
+                  <li>• Customer has 30 days to return signed document</li>
+                  <li>• Mark as "Signed Copy Received" when customer returns it</li>
+                  <li>• Payment reminders will start after signature confirmation</li>
                 </ul>
               </div>
             </div>

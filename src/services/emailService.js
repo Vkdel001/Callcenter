@@ -704,6 +704,13 @@ This is an automated message. Please do not reply to this email.
               </p>
             </div>
             
+            <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #92400e;">
+                <strong>⚠️ Important:</strong> If you have already made this payment, please ignore this reminder. 
+                It may take 1-2 business days for payments to reflect in our system.
+              </p>
+            </div>
+            
             <p>If you have any questions, please contact our customer service team.</p>
             
             <p>Best regards,<br>
@@ -767,6 +774,7 @@ Due Date: ${dueDate}
 Installment ${installment.installment_number} of ${paymentPlan.total_installments}
 
 Pay now: ${reminderUrl}
+Ignore if already paid.
 
 Policy: ${paymentPlan.policy_number}`
   }

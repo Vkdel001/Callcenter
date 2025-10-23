@@ -421,21 +421,30 @@ class ReminderService {
       const installments = await XanoAPI.getInstallments();
       const paymentPlans = await XanoAPI.getPaymentPlans();
 
-      const overdueInstallments = installments.filter(installment => {
+      // Find installments that need reminders (only 2 reminders: 7 days before and 3 days before)
+      const installmentsNeedingReminders = installments.filter(installment => {
         const dueDate = new Date(installment.due_date);
         const today = new Date();
-        const daysDiff = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+        const reminderCount = installment.reminder_sent_count || 0;
 
-        return daysDiff > 0 && installment.status !== 'paid';
+        // Only send 2 reminders: 7 days before and 3 days before due date
+        // Stop sending if already sent 2 reminders
+        if (reminderCount >= 2) {
+          return false;
+        }
+
+        // Send reminder if due in 7 days (first reminder) or 3 days (second reminder)
+        return (daysDiff === 7 && reminderCount === 0) || (daysDiff === 3 && reminderCount === 1);
       });
 
-      Logger.info(`Found ${overdueInstallments.length} overdue installments`);
+      Logger.info(`Found ${installmentsNeedingReminders.length} installments needing reminders`);
       Logger.info('DEBUG: Sample customers', {
         totalCustomers: customers.length,
         sampleEmails: customers.slice(0, 5).map(c => c.email)
       });
 
-      for (const installment of overdueInstallments) {
+      for (const installment of installmentsNeedingReminders) {
         // Find payment plan for this installment (by ID)
         const paymentPlan = paymentPlans.find(plan => plan.id === installment.payment_plan);
 
@@ -465,11 +474,11 @@ class ReminderService {
             await this.sendPaymentSMS(customer, installment);
           }
 
-          // Update reminder count
-          const reminderCount = (customer.reminder_count || 0) + 1;
-          await XanoAPI.updateCustomer(customer.id, {
-            reminder_count: reminderCount,
-            last_reminder_date: new Date().toISOString()
+          // Update installment reminder count
+          const reminderCount = (installment.reminder_sent_count || 0) + 1;
+          await XanoAPI.makeRequest(`${CONFIG.XANO_PAYMENT_API}/nic_cc_installment/${installment.id}`, 'PATCH', {
+            reminder_sent_count: reminderCount,
+            last_reminder_sent: new Date().toISOString()
           });
 
           // Add delay between communications to avoid rate limiting
@@ -557,12 +566,14 @@ class ReminderService {
   }
 
   static async sendPaymentReminder(customer, installment) {
-    const subject = `Payment Reminder - NIC Life Insurance`;
+    const reminderCount = (installment.reminder_sent_count || 0) + 1;
+    const reminderText = reminderCount === 1 ? 'First Reminder' : 'Final Reminder';
+    const subject = `${reminderText} - Payment Due - NIC Life Insurance`;
     const reminderUrl = `https://payments.niclmauritius.site/reminder/${installment.id}`;
     const dueDate = new Date(installment.due_date).toLocaleDateString();
-    const isOverdue = new Date(installment.due_date) < new Date();
-    const statusText = isOverdue ? 'OVERDUE' : 'DUE SOON';
-    const statusColor = isOverdue ? '#dc2626' : '#f59e0b';
+    const daysUntilDue = Math.ceil((new Date(installment.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+    const statusText = daysUntilDue === 7 ? 'DUE IN 7 DAYS' : daysUntilDue === 3 ? 'DUE IN 3 DAYS' : 'DUE SOON';
+    const statusColor = daysUntilDue === 3 ? '#dc2626' : '#f59e0b';
     
     const htmlContent = `
       <!DOCTYPE html>
@@ -595,13 +606,13 @@ class ReminderService {
           
           <div class="content">
             <div class="status-banner">
-              <h2 style="margin: 0;">Payment ${statusText}</h2>
+              <h2 style="margin: 0;">${reminderText} - Payment ${statusText}</h2>
               <p style="margin: 5px 0 0 0;">Installment ${installment.installment_number || 1}</p>
             </div>
 
             <p>Dear <strong>${customer.name || 'Valued Customer'}</strong>,</p>
             
-            <p>This is a reminder that your installment payment is ${isOverdue ? 'overdue' : 'due soon'}.</p>
+            <p>This is ${reminderCount === 1 ? 'a friendly reminder' : 'your final reminder'} that your installment payment is due ${daysUntilDue === 7 ? 'in 7 days' : daysUntilDue === 3 ? 'in 3 days' : 'soon'}.</p>
             
             <div class="payment-details">
               <p><strong>Policy Number:</strong> ${customer.policy_number || 'N/A'}</p>
@@ -626,6 +637,13 @@ class ReminderService {
                 ${installment.qr_code_url ? '• Scan the QR code above with your mobile banking app<br>' : ''}
                 • Click the buttons above to access your payment page<br>
                 • Contact our customer service for assistance
+              </p>
+            </div>
+            
+            <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #92400e;">
+                <strong>⚠️ Important:</strong> If you have already made this payment, please ignore this reminder. 
+                It may take 1-2 business days for payments to reflect in our system.
               </p>
             </div>
             
@@ -664,7 +682,7 @@ class ReminderService {
     const dueDate = new Date(installment.due_date).toLocaleDateString();
     const isOverdue = new Date(installment.due_date) < new Date();
     
-    const message = `NIC Life Insurance: ${isOverdue ? 'OVERDUE' : 'Payment Due'} - MUR ${installment.amount} ${isOverdue ? 'was' : ''} due ${dueDate}. Pay now: ${reminderUrl}`;
+    const message = `NIC Life Insurance: ${isOverdue ? 'OVERDUE' : 'Payment Due'} - MUR ${installment.amount} ${isOverdue ? 'was' : ''} due ${dueDate}. Pay now: ${reminderUrl}. Ignore if already paid.`;
 
     try {
       await BrevoSMSService.sendSMS(customer.mobile, message);

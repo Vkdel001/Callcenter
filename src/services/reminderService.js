@@ -24,12 +24,15 @@ class ReminderService {
         const dueDate = new Date(installment.due_date)
         const daysDifference = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24))
         
-        // Send reminder if:
-        // 1. Due in exactly 7 days, OR
-        // 2. Due in 3 days (second reminder), OR  
-        // 3. Due today, OR
-        // 4. Overdue (up to 7 days)
-        return daysDifference === 7 || daysDifference === 3 || daysDifference === 0 || (daysDifference < 0 && daysDifference >= -7)
+        // Only send 2 reminders: 7 days before and 3 days before due date
+        // Stop sending if already sent 2 reminders
+        const reminderCount = installment.reminder_sent_count || 0;
+        if (reminderCount >= 2) {
+          return false;
+        }
+
+        // Send reminder if due in 7 days (first reminder) or 3 days (second reminder)
+        return (daysDifference === 7 && reminderCount === 0) || (daysDifference === 3 && reminderCount === 1)
       })
 
       return installmentsNeedingReminders
@@ -292,9 +295,15 @@ class ReminderService {
     const today = new Date()
     const dueDate = new Date(installment.due_date)
     const daysDifference = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24))
+    const reminderCount = installment.reminder_sent_count || 0
     
-    // Send reminder if due in 7 days, 3 days, today, or overdue (up to 7 days)
-    return daysDifference === 7 || daysDifference === 3 || daysDifference === 0 || (daysDifference < 0 && daysDifference >= -7)
+    // Only send 2 reminders: 7 days before and 3 days before due date
+    if (reminderCount >= 2) {
+      return false
+    }
+
+    // Send reminder if due in 7 days (first reminder) or 3 days (second reminder)
+    return (daysDifference === 7 && reminderCount === 0) || (daysDifference === 3 && reminderCount === 1)
   }
 
   // Try to find an active payment plan for an orphaned installment

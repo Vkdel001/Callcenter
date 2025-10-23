@@ -242,6 +242,10 @@ class ReminderService {
       });
       
       Logger.info(`Found ${overdueInstallments.length} overdue installments`);
+      Logger.info('DEBUG: Sample customers', { 
+        totalCustomers: customers.length,
+        sampleEmails: customers.slice(0, 5).map(c => c.email)
+      });
       
       for (const installment of overdueInstallments) {
         // Find payment plan for this installment (by ID)
@@ -254,6 +258,7 @@ class ReminderService {
           installmentId: installment.id, 
           paymentPlan: installment.payment_plan,
           paymentPlanFound: !!paymentPlan,
+          paymentPlanCustomer: paymentPlan ? paymentPlan.customer : 'NO_PLAN',
           customerFound: !!customer,
           customerEmail: customer ? customer.email : 'NO_CUSTOMER'
         });

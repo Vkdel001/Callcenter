@@ -19,6 +19,30 @@ const LOBDashboard = () => {
   const [qrLoading, setQrLoading] = useState(false)
   const modalStateRef = useRef({ showModal: false, data: null })
 
+  // Format month display consistently
+  const formatMonthDisplay = (monthStr) => {
+    if (!monthStr) return monthStr
+    
+    // Handle different formats: "2024-11", "Nov-25", "2024-10", "Oct-25"
+    if (monthStr.includes('-')) {
+      const parts = monthStr.split('-')
+      
+      if (parts[0].length === 4) {
+        // Format: "2024-11" -> "Nov-24"
+        const year = parts[0]
+        const monthNum = parseInt(parts[1])
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        return `${monthNames[monthNum - 1]}-${year.slice(-2)}`
+      } else {
+        // Already in format "Nov-25"
+        return monthStr
+      }
+    }
+    
+    return monthStr
+  }
+
   // Load customer data when month is selected via URL
   useEffect(() => {
     const loadCustomerData = async () => {
@@ -283,7 +307,7 @@ const LOBDashboard = () => {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 capitalize">
-                  {lob} Insurance - {month}
+                  {lob} Insurance - {formatMonthDisplay(month)}
                 </h1>
                 <p className="text-gray-600 mt-1">
                   {customers.length} customers • MUR {totalAmount.toLocaleString()} total due
@@ -444,7 +468,7 @@ const LOBDashboard = () => {
         {/* Customer List Summary */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {lob.charAt(0).toUpperCase() + lob.slice(1)} Insurance - {month} Summary
+            {lob.charAt(0).toUpperCase() + lob.slice(1)} Insurance - {formatMonthDisplay(month)} Summary
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
@@ -602,7 +626,7 @@ const LOBDashboard = () => {
               onClick={() => handleMonthClick(month)}
             >
               <div className="text-center">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">{month}</h3>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">{formatMonthDisplay(month)}</h3>
                 <div className="space-y-3">
                   <div>
                     <div className="text-3xl font-bold text-blue-600">{monthData.count}</div>

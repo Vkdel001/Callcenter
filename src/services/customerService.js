@@ -1,6 +1,80 @@
 import { customerApi, assignmentApi, calllogApi, agentApi } from './apiClient'
 
 export const customerService = {
+  // TEST: Quick test function for console
+  async testAdminFiltering() {
+    const testUsers = [
+      { admin_lob: 'motor', name: 'Motor Admin' },
+      { admin_lob: 'life', name: 'Life Admin' },
+      { admin_lob: 'health', name: 'Health Admin' },
+      { admin_lob: 'call_center', name: 'Call Center Admin' },
+      { admin_lob: 'super_admin', name: 'Super Admin' }
+    ]
+    
+    for (const user of testUsers) {
+      const customers = await this.getCustomersForAdmin(user)
+      console.log(`${user.name}: ${customers.length} customers`)
+    }
+  },
+
+  // NEW: Get customers filtered by admin LOB
+  async getCustomersForAdmin(adminUser) {
+    try {
+      console.log('🔍 Getting customers for admin:', adminUser.admin_lob)
+      
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+      
+      let filteredCustomers = []
+      
+      if (adminUser.admin_lob === 'super_admin') {
+        // Super Admin: All customers
+        filteredCustomers = allCustomers
+        console.log('✅ Super Admin: All customers accessible')
+      } else if (adminUser.admin_lob === 'call_center') {
+        // Call Center Admin: Only branch 6 customers
+        filteredCustomers = allCustomers.filter(customer => customer.branch_id === 6)
+        console.log(`✅ Call Center Admin: ${filteredCustomers.length} branch 6 customers`)
+      } else if (['life', 'motor', 'health'].includes(adminUser.admin_lob)) {
+        // LOB Admins: Only their LOB customers
+        filteredCustomers = allCustomers.filter(customer => 
+          customer.line_of_business === adminUser.admin_lob
+        )
+        console.log(`✅ ${adminUser.admin_lob.toUpperCase()} Admin: ${filteredCustomers.length} customers`)
+      } else {
+        console.log('❌ Unknown admin_lob:', adminUser.admin_lob)
+        filteredCustomers = []
+      }
+      
+      // Transform to frontend format with all new fields
+      return filteredCustomers.map(customer => ({
+        id: customer.id,
+        policyNumber: customer.policy_number,
+        name: customer.name,
+        mobile: customer.mobile,
+        email: customer.email,
+        amountDue: customer.amount_due,
+        status: customer.status,
+        lastCallDate: customer.last_call_date,
+        attempts: customer.total_attempts || 0,
+        branchId: customer.branch_id,
+        salesAgentId: customer.sales_agent_id,
+        lineOfBusiness: customer.line_of_business,
+        assignedMonth: customer.assigned_month,
+        titleOwner1: customer.title_owner1,
+        titleOwner2: customer.title_owner2,
+        nameOwner2: customer.name_owner2,
+        address: customer.address,
+        nationalId: customer.national_id,
+        hasPaymentPlan: customer.has_payment_plan,
+        activePlansCount: customer.active_payment_plans_count
+      }))
+    } catch (error) {
+      console.error('Failed to get customers for admin:', error)
+      return []
+    }
+  },
+
   async getAssignedCustomers(agentId) {
     try {
       // Get customers and agent info
@@ -94,19 +168,38 @@ export const customerService = {
       console.log('Agent type:', currentAgent.agent_type)
       console.log('Agent branch:', currentAgent.branch_id)
 
-      // Filter available customers (not assigned, not completed)
-      let availableCustomers = allCustomers.filter(customer =>
-        customer.assignment_status === 'available' || !customer.assignment_status
-      )
-
-      // Apply branch filtering for internal agents
-      if (currentAgent.agent_type === 'internal' && currentAgent.branch_id) {
-        availableCustomers = availableCustomers.filter(customer => 
-          customer.branch_id === currentAgent.branch_id
+      // Apply agent type-based filtering (no assignment status filtering)
+      let availableCustomers = []
+      
+      if (currentAgent.agent_type === 'call_center') {
+        // Call center agents: ONLY branch 6 (exclusive data) + available for assignment
+        availableCustomers = allCustomers.filter(customer => 
+          customer.branch_id === 6 && 
+          (customer.assignment_status === 'available' || !customer.assignment_status)
+        )
+        console.log(`Call center agent - filtered to branch 6 (exclusive):`, availableCustomers.length, 'customers')
+      } else if (currentAgent.agent_type === 'internal' && currentAgent.branch_id) {
+        // Internal agents: ALL branch customers (exclude branch 6) + available for assignment
+        availableCustomers = allCustomers.filter(customer => 
+          customer.branch_id === currentAgent.branch_id && 
+          customer.branch_id !== 6 &&
+          (customer.assignment_status === 'available' || !customer.assignment_status)
         )
         console.log(`Internal agent - filtered to branch ${currentAgent.branch_id}:`, availableCustomers.length, 'customers')
+      } else if (currentAgent.agent_type === 'sales_agent') {
+        // Sales agents should NOT use fetch function - redirect to LOB dashboard
+        console.log('Sales agent detected - should use LOB dashboard instead of fetch')
+        return {
+          success: false,
+          message: 'Sales agents should use the LOB dashboard to view customers',
+          redirectToLOB: true
+        }
       } else {
-        console.log('Call center agent - can access all customers:', availableCustomers.length)
+        // Fallback: old behavior for agents without agent_type
+        availableCustomers = allCustomers.filter(customer =>
+          customer.assignment_status === 'available' || !customer.assignment_status
+        )
+        console.log('Legacy agent - can access all customers:', availableCustomers.length)
       }
 
       // Sort by priority (higher amount first)
@@ -114,23 +207,32 @@ export const customerService = {
         (b.amount_due || 0) - (a.amount_due || 0)
       )
 
-      // Simple fair distribution: skip (agentCount - 1) records after each selection
+      // Fair distribution: adjust for small datasets
       const agentCount = activeAgents.length
-      const skipCount = agentCount - 1
+      const availableCount = sortedCustomers.length
       
       const next10 = []
       let currentIndex = 0
       
-      while (next10.length < 10 && currentIndex < sortedCustomers.length) {
-        // Take current customer
-        next10.push(sortedCustomers[currentIndex])
+      if (availableCount <= 10) {
+        // If we have 10 or fewer customers, just take them all
+        next10.push(...sortedCustomers.slice(0, Math.min(10, availableCount)))
+        console.log(`Small dataset: Taking all ${next10.length} available customers`)
+      } else {
+        // Normal fair distribution for larger datasets
+        const skipCount = agentCount - 1
         
-        // Skip the next (agentCount - 1) customers for other agents
-        currentIndex += (skipCount + 1) // +1 to move to next available after skip
+        while (next10.length < 10 && currentIndex < sortedCustomers.length) {
+          // Take current customer
+          next10.push(sortedCustomers[currentIndex])
+          
+          // Skip the next (agentCount - 1) customers for other agents
+          currentIndex += (skipCount + 1) // +1 to move to next available after skip
+        }
+        console.log(`Fair distribution: Agent count = ${agentCount}, Skip count = ${skipCount}`)
       }
 
-      console.log(`Fair distribution: Agent count = ${agentCount}, Skip count = ${skipCount}`)
-      console.log('Selected customer indices:', next10.map((_, i) => i * agentCount))
+      console.log('Selected customers:', next10.length)
 
       if (next10.length === 0) {
         return {
@@ -607,6 +709,122 @@ NIC Life Insurance Mauritius`
       return {
         success: false,
         error: error.message || 'Failed to send email'
+      }
+    }
+  },
+
+  async getSalesAgentLOBSummary(salesAgentId) {
+    try {
+      console.log('Getting LOB summary for sales agent:', salesAgentId)
+
+      // Get all customers for this sales agent
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+
+      // Filter customers belonging to this sales agent
+      const salesAgentCustomers = allCustomers.filter(customer => 
+        customer.sales_agent_id === salesAgentId
+      )
+
+      console.log(`Found ${salesAgentCustomers.length} customers for sales agent ${salesAgentId}`)
+
+      // Group customers by LOB
+      const lobSummary = {
+        life: { count: 0, totalAmount: 0, months: {} },
+        health: { count: 0, totalAmount: 0, months: {} },
+        motor: { count: 0, totalAmount: 0, months: {} }
+      }
+
+      salesAgentCustomers.forEach(customer => {
+        const lob = customer.line_of_business || 'life'
+        const month = customer.assigned_month || 'Unknown'
+        const amount = parseFloat(customer.amount_due) || 0
+
+        // Update LOB totals
+        if (lobSummary[lob]) {
+          lobSummary[lob].count += 1
+          lobSummary[lob].totalAmount += amount
+
+          // Update month breakdown
+          if (!lobSummary[lob].months[month]) {
+            lobSummary[lob].months[month] = { count: 0, totalAmount: 0 }
+          }
+          lobSummary[lob].months[month].count += 1
+          lobSummary[lob].months[month].totalAmount += amount
+        }
+      })
+
+      console.log('LOB Summary:', lobSummary)
+
+      return {
+        success: true,
+        salesAgentId,
+        totalCustomers: salesAgentCustomers.length,
+        lobSummary
+      }
+    } catch (error) {
+      console.error('Failed to get sales agent LOB summary:', error)
+      return {
+        success: false,
+        error: error.message,
+        lobSummary: {
+          life: { count: 0, totalAmount: 0, months: {} },
+          health: { count: 0, totalAmount: 0, months: {} },
+          motor: { count: 0, totalAmount: 0, months: {} }
+        }
+      }
+    }
+  },
+
+  async getSalesAgentCustomersForLOBMonth(salesAgentId, lob, month) {
+    try {
+      console.log(`Getting customers for sales agent ${salesAgentId}, LOB: ${lob}, Month: ${month}`)
+
+      // Get all customers for this sales agent
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+
+      // Filter customers by sales agent, LOB, and month
+      const filteredCustomers = allCustomers.filter(customer => 
+        customer.sales_agent_id === salesAgentId &&
+        customer.line_of_business === lob &&
+        customer.assigned_month === month
+      )
+
+      console.log(`Found ${filteredCustomers.length} customers for ${lob} - ${month}`)
+
+      // Transform to frontend format
+      const customers = filteredCustomers.map(customer => ({
+        id: customer.id,
+        policyNumber: customer.policy_number,
+        name: customer.name,
+        mobile: customer.mobile,
+        email: customer.email,
+        amountDue: customer.amount_due,
+        status: customer.status,
+        lastCallDate: customer.last_call_date,
+        attempts: customer.total_attempts || 0,
+        titleOwner1: customer.title_owner1,
+        titleOwner2: customer.title_owner2,
+        nameOwner2: customer.name_owner2,
+        address: customer.address,
+        nationalId: customer.national_id
+      }))
+
+      return {
+        success: true,
+        customers,
+        lob,
+        month,
+        totalCustomers: customers.length,
+        totalAmount: customers.reduce((sum, c) => sum + (c.amountDue || 0), 0)
+      }
+    } catch (error) {
+      console.error('Failed to get sales agent customers for LOB/Month:', error)
+      return {
+        success: false,
+        error: error.message,
+        customers: []
       }
     }
   }

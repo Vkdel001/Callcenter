@@ -57,7 +57,11 @@ export const authService = {
         id: agent.id,
         name: agent.name,
         email: agent.email,
-        role: userRole
+        role: userRole,
+        agent_type: agent.agent_type || 'call_center', // Default to call_center for old agents
+        sales_agent_id: agent.sales_agent_id || null,   // Sales agent ID (if applicable)
+        branch_id: agent.branch_id || null,             // Branch ID (for internal agents)
+        admin_lob: agent.admin_lob || null              // LOB-specific admin access (NEW)
       }
 
       // Send OTP
@@ -116,12 +120,18 @@ export const authService = {
         userRole = agent.role || agent.Role || 'agent'
       }
 
-      return {
+      const validatedUserData = {
         id: agent.id,
         name: agent.name,
         email: agent.email,
-        role: userRole
+        role: userRole,
+        agent_type: agent.agent_type || 'call_center', // Default to call_center for old agents
+        sales_agent_id: agent.sales_agent_id || null,   // Sales agent ID (if applicable)
+        branch_id: agent.branch_id || null,             // Branch ID (for internal agents)
+        admin_lob: agent.admin_lob || null              // LOB-specific admin access (NEW)
       }
+      
+      return validatedUserData
     } catch (error) {
       console.error('Token validation failed:', error)
       throw new Error('Invalid token')

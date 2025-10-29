@@ -22,6 +22,7 @@ import ReminderScheduler from './pages/admin/ReminderScheduler'
 import QuickQRGenerator from './pages/QuickQRGenerator'
 import PaymentPlanTest from './pages/test/PaymentPlanTest'
 import InstallmentReminder from './pages/InstallmentReminder'
+import LOBDashboard from './components/sales/LOBDashboard'
 
 function App() {
   // Initialize scheduler and check database when app starts
@@ -65,6 +66,8 @@ function App() {
           <Route path="customers" element={<CustomerList />} />
           <Route path="customers/:id" element={<CustomerDetail />} />
           <Route path="quick-qr" element={<QuickQRGenerator />} />
+          <Route path="lob/:lobType" element={<LOBDashboard />} />
+          <Route path="lob/:lobType/:month" element={<LOBDashboard />} />
           <Route path="admin" element={<AdminDashboard />} />
           <Route path="admin/upload" element={<CustomerUpload />} />
           <Route path="admin/reports" element={<Reports />} />

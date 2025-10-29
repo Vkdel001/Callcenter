@@ -3,10 +3,32 @@ import { useAuth } from '../contexts/AuthContext'
 import { customerService } from '../services/customerService'
 import { Users, Phone, DollarSign, Clock, RefreshCw } from 'lucide-react'
 import { formatCurrencyShort } from '../utils/currency'
+import LOBDashboard from '../components/sales/LOBDashboard'
 
 const Dashboard = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  
+  // Make customerService available for testing
+  if (import.meta.env.DEV) {
+    window.customerService = customerService
+    window.currentUser = user
+  }
+  
+  // Debug: Log user data to see what we have
+  console.log('Dashboard - User data:', user)
+  console.log('Dashboard - Agent type:', user?.agent_type)
+  console.log('Dashboard - Sales agent ID:', user?.sales_agent_id)
+  
+  // Check if user is a sales agent (note: field is agent_type, not agentType)
+  const isSalesAgent = user?.agent_type === 'sales_agent'
+  
+  console.log('Dashboard - Is sales agent:', isSalesAgent)
+  
+  // If sales agent, show LOB dashboard instead
+  if (isSalesAgent) {
+    return <LOBDashboard />
+  }
   
   const { data: customers = [], isLoading } = useQuery(
     ['customers', user?.id],

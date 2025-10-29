@@ -21,7 +21,7 @@ A modern web application for insurance call center agents to manage customer due
 - **Forms**: React Hook Form
 - **Icons**: Lucide React
 - **Backend**: Xano (to be configured)
-- **Hosting**: Netlify (recommended)
+- **Hosting**: VPS with Nginx
 
 ## Getting Started
 
@@ -29,7 +29,7 @@ A modern web application for insurance call center agents to manage customer due
 
 - Node.js 16+ and npm
 - Xano account for backend
-- Netlify account for hosting (optional)
+- VPS server for hosting
 
 ### Installation
 
@@ -117,22 +117,22 @@ Update `src/services/authService.js` and `src/services/customerService.js` with 
 
 ## Deployment
 
-### Netlify Deployment
+### VPS Deployment
 
 1. Build the project:
 ```bash
 npm run build
 ```
 
-2. Deploy to Netlify:
-   - Connect your GitHub repository to Netlify
-   - Set build command: `npm run build`
-   - Set publish directory: `dist`
-   - Add environment variables in Netlify dashboard
+2. Deploy to VPS:
+   - Use the provided deployment scripts
+   - Configure Nginx to serve the built files
+   - Set up SSL with Let's Encrypt
+   - Configure environment variables on server
 
 ### Environment Variables for Production
 
-Set these in your Netlify dashboard:
+Set these in your VPS `.env` file:
 - `REACT_APP_API_URL` - Your Xano instance URL
 - `REACT_APP_QR_API_URL` - QR code generation service
 - `REACT_APP_WHATSAPP_API_URL` - WhatsApp API endpoint

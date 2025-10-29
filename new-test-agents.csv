@@ -1,0 +1,10 @@
+name,email,password_hash,role,active,agent_type,sales_agent_id,branch_id,current_batch_size
+Test Call Center Agent,callcenter.test@nic.mu,password123,agent,TRUE,call_center,,6,10
+Test Internal Agent Port Louis,internal.portlouis@nic.mu,password123,agent,TRUE,internal,,1,10
+Test Internal Agent Quatre Bornes,internal.qb@nic.mu,password123,agent,TRUE,internal,,2,10
+Test Internal Agent Flacq,internal.flacq@nic.mu,password123,agent,TRUE,internal,,3,10
+Test Internal Agent Vacoas,internal.vacoas@nic.mu,password123,agent,TRUE,internal,,5,10
+Test Internal Agent Curepipe,internal.curepipe@nic.mu,password123,agent,TRUE,internal,,7,10
+Sales Agent John Smith,sales.john@nic.mu,password123,agent,TRUE,sales_agent,SA001,,0
+Sales Agent Mary Johnson,sales.mary@nic.mu,password123,agent,TRUE,sales_agent,SA002,,0
+Sales Agent David Brown,sales.david@nic.mu,password123,agent,TRUE,sales_agent,SA003,,0

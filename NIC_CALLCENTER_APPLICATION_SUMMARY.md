@@ -326,10 +326,10 @@ if (currentAgent.agent_type === 'internal' && currentAgent.branch_id) {
 ## 🚀 **Deployment Architecture**
 
 ### **Frontend Deployment**
-- **Platform**: Netlify (recommended) or Vercel
-- **Build**: `npm run build` → `dist/` folder
-- **Environment**: Production environment variables
-- **Domain**: Custom domain with HTTPS
+- **Platform**: VPS with Nginx
+- **Build**: `npm run build` → `dist/` folder served by Nginx
+- **Environment**: Production environment variables in `.env`
+- **Domain**: Custom domain with Let's Encrypt SSL
 
 ### **Backend Service Deployment**
 - **Platform**: Ubuntu VPS server

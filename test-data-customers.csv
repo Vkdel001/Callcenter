@@ -1,0 +1,11 @@
+policy_number,name,mobile,email,amount_due,status,branch_id,sales_agent_id,line_of_business,assigned_month,title_owner1,title_owner2,name_owner2,address,national_id
+LIFE-TEST-001,Regular Branch Customer Flacq,57111111,regular.flacq@test.com,5000,pending,1,,life,Oct-25,Mr,,Jane Doe,123 Royal Road Flacq,ID1234567890
+HEALTH-TEST-002,Sales Agent Customer John,57111112,sales.john.customer@test.com,3000,pending,1,SA001,health,Oct-25,Mrs,,Mary Smith,456 Main Street Port Louis,ID2345678901
+MOTOR-TEST-003,Sales Agent Customer Mary,57111113,sales.mary.customer@test.com,2500,pending,2,SA002,motor,Nov-25,Dr,,David Johnson,789 Ocean Drive Curepipe,ID3456789012
+LIFE-TEST-004,Internal Branch Customer Curepipe,57111114,internal.curepipe.customer@test.com,4000,pending,2,,life,Oct-25,Ms,,,321 Hill Street Curepipe,ID4567890123
+HEALTH-TEST-005,Sales Agent Customer David,57111115,sales.david.customer@test.com,1800,pending,1,SA003,health,Nov-25,Mr,Mr,Peter Brown,654 Park Avenue Flacq,ID5678901234
+MOTOR-EXCL-006,Call Center Exclusive Customer 1,57111116,exclusive1@test.com,2000,pending,6,,motor,Dec-25,Mrs,,,987 Coast Road Mahebourg,ID6789012345
+LIFE-EXCL-007,Call Center Exclusive Customer 2,57111117,exclusive2@test.com,3500,pending,6,,life,Dec-25,Dr,,,147 Beach Street Flic en Flac,ID7890123456
+HEALTH-EXCL-008,Call Center Exclusive Customer 3,57111118,exclusive3@test.com,1500,pending,6,,health,Dec-25,Mr,Mrs,Sarah Wilson,258 Mountain View Vacoas,ID8901234567
+LIFE-TEST-009,Multi LOB Customer Life,57111119,multi.customer@test.com,6000,pending,1,SA001,life,Nov-25,Ms,,,369 Garden Street Rose Hill,ID9012345678
+MOTOR-TEST-010,Multi LOB Customer Motor,57111120,multi.customer2@test.com,2200,pending,1,SA001,motor,Oct-25,Mr,,,741 Valley Road Quatre Bornes,ID0123456789

@@ -7,7 +7,13 @@ const Sidebar = () => {
   
 
   
-  const agentNavItems = [
+  // Different navigation for different agent types
+  const salesAgentNavItems = [
+    { to: '/', icon: Home, label: 'Dashboard' }
+    // Sales agents only need Dashboard (LOB system)
+  ]
+
+  const callCenterAgentNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/customers', icon: Users, label: 'Customers' },
     { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
@@ -23,7 +29,14 @@ const Sidebar = () => {
     { to: '/admin/scheduler', icon: Clock, label: 'Reminder Scheduler' }
   ]
 
-  const navItems = user?.role === 'admin' ? adminNavItems : agentNavItems
+  // Choose navigation based on user role and agent type
+  const getNavItems = () => {
+    if (user?.role === 'admin') return adminNavItems
+    if (user?.agent_type === 'sales_agent') return salesAgentNavItems
+    return callCenterAgentNavItems // Default for call_center and internal agents
+  }
+
+  const navItems = getNavItems()
 
   return (
     <aside className="w-64 bg-white shadow-sm border-r border-gray-200 min-h-screen">

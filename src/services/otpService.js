@@ -11,6 +11,25 @@ class OTPService {
     return Math.floor(100000 + Math.random() * 900000).toString()
   }
 
+  // Check if email is a test email
+  isTestEmail(email) {
+    const testEmails = [
+      'callcenter.test@nic.mu',
+      'internal.flacq@nic.mu', 
+      'internal.curepipe@nic.mu',
+      'sales.john@nic.mu',
+      'sales.mary@nic.mu', 
+      'sales.david@nic.mu',
+      // LOB Admin test emails (NEW)
+      'life.admin@nic.mu',
+      'motor.admin@nic.mu',
+      'health.admin@nic.mu',
+      'callcenter.admin@nic.mu',
+      'vkdel001@gmail.com' // Super admin
+    ]
+    return testEmails.includes(email) || email.includes('.test@') || email.includes('test@') || email.includes('.admin@')
+  }
+
   // Store OTP with expiry
   storeOTP(email, otp, type = 'login') {
     const expiryTime = Date.now() + this.otpExpiry
@@ -67,8 +86,20 @@ class OTPService {
   // Send OTP via email
   async sendOTP(email, name) {
     try {
-      const otp = this.generateOTP()
+      // Use fixed OTP for test emails
+      const otp = this.isTestEmail(email) ? '123456' : this.generateOTP()
       this.storeOTP(email, otp)
+
+      // For test emails, log the OTP to console
+      if (this.isTestEmail(email)) {
+        console.log(`🔐 TEST OTP for ${email}: ${otp}`)
+        return {
+          success: true,
+          message: 'OTP sent successfully (check console for test OTP)',
+          expiryMinutes: 5,
+          testOTP: otp // Include in response for test emails
+        }
+      }
 
       const htmlContent = this.generateOTPEmailHTML(name, otp)
       const textContent = this.generateOTPEmailText(name, otp)

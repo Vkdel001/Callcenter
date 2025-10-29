@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { customerApi } from '../../services/apiClient'
-import { Upload, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import { Upload, FileText, CheckCircle, AlertCircle, Download, Shield } from 'lucide-react'
 
 const CustomerUpload = () => {
+  const { user } = useAuth()
   const [file, setFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadResults, setUploadResults] = useState(null)
@@ -61,6 +63,25 @@ const CustomerUpload = () => {
     if (!customer.amount_due || isNaN(customer.amount_due)) {
       errors.push(`Row ${index + 2}: Valid amount due is required`)
     }
+
+    // NEW: LOB validation - admin can only upload data matching their LOB
+    if (user?.admin_lob && user.admin_lob !== 'super_admin') {
+      if (!customer.line_of_business) {
+        errors.push(`Row ${index + 2}: Line of business is required`)
+      } else if (customer.line_of_business !== user.admin_lob) {
+        errors.push(`Row ${index + 2}: ${user.admin_lob.toUpperCase()} Admin cannot upload ${customer.line_of_business} data. Policy: ${customer.policy_number}`)
+      }
+    }
+
+    // Validate line_of_business values
+    if (customer.line_of_business && !['life', 'health', 'motor'].includes(customer.line_of_business)) {
+      errors.push(`Row ${index + 2}: Line of business must be 'life', 'health', or 'motor'`)
+    }
+
+    // Validate branch_id if provided
+    if (customer.branch_id && isNaN(customer.branch_id)) {
+      errors.push(`Row ${index + 2}: Branch ID must be a number`)
+    }
     
     return errors
   }
@@ -118,7 +139,17 @@ const CustomerUpload = () => {
             amount_due: parseFloat(customer.amount_due),
             status: customer.status || 'pending',
             last_call_date: customer.last_call_date ? customer.last_call_date : '2025-01-20',
-            total_attempts: parseInt(customer.total_attempts) || 0
+            total_attempts: parseInt(customer.total_attempts) || 0,
+            // NEW: Add all new fields
+            sales_agent_id: customer.sales_agent_id || null,
+            line_of_business: customer.line_of_business || (user?.admin_lob !== 'super_admin' ? user?.admin_lob : 'life'),
+            assigned_month: customer.assigned_month || null,
+            title_owner1: customer.title_owner1 || null,
+            title_owner2: customer.title_owner2 || null,
+            name_owner2: customer.name_owner2 || null,
+            address: customer.address || null,
+            national_id: customer.national_id || null,
+            branch_id: customer.branch_id ? parseInt(customer.branch_id) : null
           }
           
           // Try to add new fields, but don't fail if they don't exist
@@ -231,16 +262,19 @@ const CustomerUpload = () => {
   }
 
   const downloadTemplate = () => {
-    const template = `policy_number,name,mobile,email,amount_due,status,last_call_date,total_attempts
-MED/2023/220/11/0025/1,John Doe,(123) 456-7890,john@example.com,5000.00,pending,2025-01-20,0
-MED/2023/220/11/0040/1,Jane Smith,(456) 789-0123,jane@example.com,3500.50,pending,2025-01-20,0
-MED/2023/220/12/0041/1,Bob Johnson,(789) 012-3456,bob@example.com,7500.25,pending,2025-01-20,0`
+    // Get admin-specific LOB for template
+    const adminLOB = user?.admin_lob === 'super_admin' ? 'life' : (user?.admin_lob || 'life')
+    
+    const template = `policy_number,name,mobile,email,amount_due,status,last_call_date,total_attempts,sales_agent_id,line_of_business,assigned_month,title_owner1,title_owner2,name_owner2,address,national_id,branch_id
+${adminLOB.toUpperCase()}-001,John Doe,57111001,john@example.com,5000.00,pending,2025-01-20,0,SA001,${adminLOB},2024-10,Mr,,Jane Doe,123 Main Street Port Louis,ID123456789,1
+${adminLOB.toUpperCase()}-002,Jane Smith,57111002,jane@example.com,3500.50,pending,2025-01-20,0,SA002,${adminLOB},2024-11,Mrs,Mr,John Smith,456 Oak Avenue Curepipe,ID789012345,2
+${adminLOB.toUpperCase()}-003,Bob Johnson,57111003,bob@example.com,7500.25,pending,2025-01-20,0,,${adminLOB},2024-12,Dr,,,789 Pine Road Flacq,ID345678901,3`
     
     const blob = new Blob([template], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'customer_template.csv'
+    a.download = `${adminLOB}_customer_template.csv`
     a.click()
     window.URL.revokeObjectURL(url)
   }
@@ -248,7 +282,17 @@ MED/2023/220/12/0041/1,Bob Johnson,(789) 012-3456,bob@example.com,7500.25,pendin
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Upload Customer Data</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Upload Customer Data</h1>
+          {user?.admin_lob && user.admin_lob !== 'super_admin' && (
+            <div className="mt-2 flex items-center">
+              <Shield className="h-4 w-4 text-blue-600 mr-2" />
+              <span className="text-sm text-blue-600 font-medium">
+                {user.admin_lob.toUpperCase()} Admin - Can only upload {user.admin_lob} data
+              </span>
+            </div>
+          )}
+        </div>
         <div className="flex space-x-3">
           <button
             onClick={testConnection}
@@ -390,16 +434,40 @@ MED/2023/220/12/0041/1,Bob Johnson,(789) 012-3456,bob@example.com,7500.25,pendin
         <h3 className="text-sm font-medium text-blue-800 mb-2">CSV Format Requirements:</h3>
         <div className="text-sm text-blue-700">
           <p>Your CSV file should have these columns:</p>
-          <ul className="list-disc pl-5 mt-1 space-y-1">
-            <li><strong>policy_number</strong> - Unique policy identifier</li>
-            <li><strong>name</strong> - Customer full name</li>
-            <li><strong>mobile</strong> - Mobile phone number</li>
-            <li><strong>email</strong> - Email address</li>
-            <li><strong>amount_due</strong> - Outstanding amount (number)</li>
-            <li><strong>status</strong> - pending, contacted, resolved (optional, defaults to pending)</li>
-            <li><strong>last_call_date</strong> - Date of last call (YYYY-MM-DD format, defaults to today)</li>
-            <li><strong>total_attempts</strong> - Number of call attempts (optional, defaults to 0)</li>
-          </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <div>
+              <h4 className="font-medium mb-1">Required Fields:</h4>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>policy_number</strong> - Unique policy identifier</li>
+                <li><strong>name</strong> - Customer full name</li>
+                <li><strong>mobile</strong> - Mobile phone number</li>
+                <li><strong>email</strong> - Email address</li>
+                <li><strong>amount_due</strong> - Outstanding amount (number)</li>
+                <li><strong>line_of_business</strong> - life, health, or motor {user?.admin_lob !== 'super_admin' && `(must be ${user?.admin_lob})`}</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium mb-1">Optional Fields:</h4>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>status</strong> - pending, contacted, resolved (defaults to pending)</li>
+                <li><strong>sales_agent_id</strong> - Sales agent identifier (e.g., SA001)</li>
+                <li><strong>assigned_month</strong> - Format: Oct-25, Nov-25</li>
+                <li><strong>title_owner1</strong> - Mr, Mrs, Ms, Dr</li>
+                <li><strong>title_owner2</strong> - Second owner title</li>
+                <li><strong>name_owner2</strong> - Second owner name</li>
+                <li><strong>address</strong> - Full address</li>
+                <li><strong>national_id</strong> - National ID number</li>
+                <li><strong>branch_id</strong> - Branch number (1-6)</li>
+              </ul>
+            </div>
+          </div>
+          {user?.admin_lob && user.admin_lob !== 'super_admin' && (
+            <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded">
+              <p className="font-medium text-yellow-800">
+                ⚠️ LOB Restriction: As a {user.admin_lob.toUpperCase()} Admin, you can only upload customers with line_of_business = "{user.admin_lob}"
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,0 +1,7 @@
+name,email,password_hash,role,active,agent_type,sales_agent_id,branch_id
+Test Call Center Agent,callcenter.test@nic.mu,password123,agent,TRUE,call_center,,
+Test Internal Agent Flacq,internal.flacq@nic.mu,password123,agent,TRUE,internal,,1
+Test Internal Agent Curepipe,internal.curepipe@nic.mu,password123,agent,TRUE,internal,,2
+Test Sales Agent John,sales.john@nic.mu,password123,agent,TRUE,sales_agent,SA001,
+Test Sales Agent Mary,sales.mary@nic.mu,password123,agent,TRUE,sales_agent,SA002,
+Test Sales Agent David,sales.david@nic.mu,password123,agent,TRUE,sales_agent,SA003,

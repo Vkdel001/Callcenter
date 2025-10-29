@@ -1,0 +1,19 @@
+policy_number,name,mobile,email,amount_due,status,branch_id,sales_agent_id,line_of_business,assigned_month,title_owner1,title_owner2,name_owner2,address,national_id,assignment_status,total_attempts,priority_score,has_payment_plan,active_payment_plans_count
+LIFE-PL-001,John Smith Port Louis,57111001,john.portlouis@test.com,5000.00,pending,1,,life,Oct-25,Mr,,Jane Smith,123 Royal Road Port Louis,ID1001,available,0,5000.00,FALSE,0
+HEALTH-PL-002,Mary Johnson Port Louis,57111002,mary.portlouis@test.com,3000.00,pending,1,SA001,health,Oct-25,Mrs,,Peter Johnson,456 Main Street Port Louis,ID1002,available,0,3000.00,FALSE,0
+MOTOR-PL-003,David Brown Port Louis,57111003,david.portlouis@test.com,2500.00,pending,1,SA001,motor,Nov-25,Dr,Mrs,Sarah Brown,789 Ocean Drive Port Louis,ID1003,available,0,2500.00,FALSE,0
+LIFE-QB-004,Susan Wilson Quatre Bornes,57111004,susan.qb@test.com,4000.00,pending,2,,life,Nov-25,Ms,,,321 Hill Street Quatre Bornes,ID2001,available,0,4000.00,FALSE,0
+HEALTH-QB-005,Robert Davis Quatre Bornes,57111005,robert.qb@test.com,1800.00,pending,2,SA002,health,Oct-25,Mr,,,654 Park Avenue Quatre Bornes,ID2002,available,0,1800.00,FALSE,0
+MOTOR-QB-006,Lisa Garcia Quatre Bornes,57111006,lisa.qb@test.com,2200.00,pending,2,SA002,motor,Nov-25,Mrs,,,987 Coast Road Quatre Bornes,ID2003,available,0,2200.00,FALSE,0
+LIFE-FL-007,Michael Martinez Flacq,57111007,michael.flacq@test.com,3500.00,pending,3,,life,Dec-25,Mr,Mr,Carlos Martinez,147 Beach Street Flacq,ID3001,available,0,3500.00,FALSE,0
+HEALTH-FL-008,Jennifer Rodriguez Flacq,57111008,jennifer.flacq@test.com,6000.00,pending,3,SA003,health,Oct-25,Ms,,,258 Mountain View Flacq,ID3002,available,0,6000.00,FALSE,0
+MOTOR-FL-009,Christopher Lee Flacq,57111009,christopher.flacq@test.com,1500.00,pending,3,SA003,motor,Nov-25,Dr,,,369 Garden Street Flacq,ID3003,available,0,1500.00,FALSE,0
+LIFE-VC-010,Amanda Taylor Vacoas,57111010,amanda.vacoas@test.com,2800.00,pending,5,,life,Dec-25,Mrs,,,741 Valley Road Vacoas,ID5001,available,0,2800.00,FALSE,0
+HEALTH-VC-011,James Wilson Vacoas,57111011,james.vacoas@test.com,3200.00,pending,5,SA001,health,Nov-25,Mr,,,852 Mountain Path Vacoas,ID5002,available,0,3200.00,FALSE,0
+MOTOR-CP-012,Sarah Thompson Curepipe,57111012,sarah.curepipe@test.com,1900.00,pending,7,,motor,Dec-25,Dr,Ms,Emma Wilson,963 Coastal Avenue Curepipe,ID7001,available,0,1900.00,FALSE,0
+LIFE-CP-013,Kevin Anderson Curepipe,57111013,kevin.curepipe@test.com,4500.00,pending,7,SA003,life,Oct-25,Mr,,,159 Forest Lane Curepipe,ID7002,available,0,4500.00,FALSE,0
+EXCL-CCE-001,Exclusive Customer Alpha,57111014,exclusive.alpha@test.com,2000.00,pending,6,,motor,Dec-25,Mr,,,741 Valley Road Mahebourg,ID6001,available,0,2000.00,FALSE,0
+EXCL-CCE-002,Exclusive Customer Beta,57111015,exclusive.beta@test.com,3500.00,pending,6,,life,Dec-25,Mrs,,,852 Mountain Path Flic en Flac,ID6002,available,0,3500.00,FALSE,0
+EXCL-CCE-003,Exclusive Customer Gamma,57111016,exclusive.gamma@test.com,1500.00,pending,6,,health,Dec-25,Dr,Ms,Emma Wilson,963 Coastal Avenue Tamarin,ID6003,available,0,1500.00,FALSE,0
+EXCL-CCE-004,Exclusive Customer Delta,57111017,exclusive.delta@test.com,2800.00,pending,6,,life,Jan-26,Ms,,,147 Sunset Boulevard Black River,ID6004,available,0,2800.00,FALSE,0
+EXCL-CCE-005,Exclusive Customer Echo,57111018,exclusive.echo@test.com,1200.00,pending,6,,health,Jan-26,Mr,,,258 Lagoon Street Grand Baie,ID6005,available,0,1200.00,FALSE,0

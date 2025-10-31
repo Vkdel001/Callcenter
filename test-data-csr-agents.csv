@@ -1,0 +1,6 @@
+name,email,password_hash,role,agent_type,branch_id,active
+CSR Port Louis,csr.portlouis@nic.mu,password123,agent,csr,1,true
+CSR Curepipe,csr.curepipe@nic.mu,password123,agent,csr,2,true
+CSR Flacq,csr.flacq@nic.mu,password123,agent,csr,3,true
+CSR Mahebourg,csr.mahebourg@nic.mu,password123,agent,csr,4,true
+CSR Rose Hill,csr.rosehill@nic.mu,password123,agent,csr,5,true

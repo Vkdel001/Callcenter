@@ -1,0 +1,7 @@
+branch_id,branch_name,branch_code,life_customers,health_customers,motor_customers,total_customers,csr_assigned
+1,Port Louis,PL,10,8,9,27,csr.portlouis@nic.mu
+2,Curepipe,CP,6,5,4,15,csr.curepipe@nic.mu
+3,Flacq,FL,4,3,3,10,csr.flacq@nic.mu
+4,Mahebourg,MH,0,0,0,0,csr.mahebourg@nic.mu
+5,Rose Hill,RH,0,0,0,0,csr.rosehill@nic.mu
+6,Call Center Exclusive,CCE,5,6,5,16,N/A

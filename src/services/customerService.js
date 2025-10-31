@@ -827,5 +827,122 @@ NIC Life Insurance Mauritius`
         customers: []
       }
     }
+  },
+
+  // NEW: CSR LOB Summary (Universal Access to ALL branches except branch 6)
+  async getCSRLOBSummary() {
+    try {
+      console.log('Getting LOB summary for CSR (universal access)')
+
+      // Get all customers from all branches
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+
+      // CSR sees ALL customers except call center exclusive (branch 6)
+      const csrAccessibleCustomers = allCustomers.filter(customer => 
+        customer.branch_id !== 6  // Exclude only call center exclusive data
+      )
+
+      console.log(`CSR has access to ${csrAccessibleCustomers.length} customers (excluding branch 6)`)
+
+      // Group customers by LOB and month (same logic as sales agent)
+      const lobSummary = {
+        life: { count: 0, totalAmount: 0, months: {} },
+        health: { count: 0, totalAmount: 0, months: {} },
+        motor: { count: 0, totalAmount: 0, months: {} }
+      }
+
+      csrAccessibleCustomers.forEach(customer => {
+        const lob = customer.line_of_business || 'life'
+        const month = customer.assigned_month || 'Unknown'
+        const amount = parseFloat(customer.amount_due) || 0
+
+        // Update LOB totals
+        if (lobSummary[lob]) {
+          lobSummary[lob].count += 1
+          lobSummary[lob].totalAmount += amount
+
+          // Update month breakdown
+          if (!lobSummary[lob].months[month]) {
+            lobSummary[lob].months[month] = { count: 0, totalAmount: 0 }
+          }
+          lobSummary[lob].months[month].count += 1
+          lobSummary[lob].months[month].totalAmount += amount
+        }
+      })
+
+      console.log('CSR LOB Summary:', lobSummary)
+
+      return {
+        success: true,
+        totalCustomers: csrAccessibleCustomers.length,
+        lobSummary
+      }
+    } catch (error) {
+      console.error('Failed to get CSR LOB summary:', error)
+      return {
+        success: false,
+        error: error.message,
+        lobSummary: {
+          life: { count: 0, totalAmount: 0, months: {} },
+          health: { count: 0, totalAmount: 0, months: {} },
+          motor: { count: 0, totalAmount: 0, months: {} }
+        }
+      }
+    }
+  },
+
+  // NEW: CSR Customer List (Universal Access to specific LOB + Month)
+  async getCSRCustomersForLOBMonth(lob, month) {
+    try {
+      console.log(`Getting CSR customers for LOB: ${lob}, Month: ${month} (universal access)`)
+
+      // Get all customers from all branches
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+
+      // Filter for CSR: specific LOB + month, exclude branch 6 (call center exclusive)
+      const filteredCustomers = allCustomers.filter(customer => 
+        customer.line_of_business === lob &&
+        customer.assigned_month === month &&
+        customer.branch_id !== 6  // Exclude call center exclusive data
+      )
+
+      console.log(`Found ${filteredCustomers.length} CSR customers for ${lob} - ${month}`)
+
+      // Transform to frontend format (same as sales agent)
+      const customers = filteredCustomers.map(customer => ({
+        id: customer.id,
+        policyNumber: customer.policy_number,
+        name: customer.name,
+        mobile: customer.mobile,
+        email: customer.email,
+        amountDue: customer.amount_due,
+        status: customer.status,
+        lastCallDate: customer.last_call_date,
+        attempts: customer.total_attempts || 0,
+        titleOwner1: customer.title_owner1,
+        titleOwner2: customer.title_owner2,
+        nameOwner2: customer.name_owner2,
+        address: customer.address,
+        nationalId: customer.national_id
+      }))
+
+      return {
+        success: true,
+        customers,
+        lob,
+        month,
+        totalCustomers: customers.length,
+        totalAmount: customers.reduce((sum, c) => sum + (c.amountDue || 0), 0)
+      }
+    } catch (error) {
+      console.error('Failed to get CSR customers for LOB/Month:', error)
+      return {
+        success: false,
+        error: error.message,
+        customers: []
+      }
+    }
   }
 }

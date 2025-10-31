@@ -20,13 +20,13 @@ const Dashboard = () => {
   console.log('Dashboard - Agent type:', user?.agent_type)
   console.log('Dashboard - Sales agent ID:', user?.sales_agent_id)
   
-  // Check if user is a sales agent (note: field is agent_type, not agentType)
-  const isSalesAgent = user?.agent_type === 'sales_agent'
+  // Check if user should use LOB Dashboard (sales agent or CSR)
+  const useLOBDashboard = user?.agent_type === 'sales_agent' || user?.agent_type === 'csr'
   
-  console.log('Dashboard - Is sales agent:', isSalesAgent)
+  console.log('Dashboard - Use LOB Dashboard:', useLOBDashboard, 'Agent type:', user?.agent_type)
   
-  // If sales agent, show LOB dashboard instead
-  if (isSalesAgent) {
+  // If sales agent or CSR, show LOB dashboard instead
+  if (useLOBDashboard) {
     return <LOBDashboard />
   }
   

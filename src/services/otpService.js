@@ -20,14 +20,20 @@ class OTPService {
       'sales.john@nic.mu',
       'sales.mary@nic.mu', 
       'sales.david@nic.mu',
-      // LOB Admin test emails (NEW)
+      // LOB Admin test emails
       'life.admin@nic.mu',
       'motor.admin@nic.mu',
       'health.admin@nic.mu',
       'callcenter.admin@nic.mu',
-      'vkdel001@gmail.com' // Super admin
+      'vkdel001@gmail.com', // Super admin
+      // CSR test emails (NEW)
+      'csr.portlouis@nic.mu',
+      'csr.curepipe@nic.mu',
+      'csr.flacq@nic.mu',
+      'csr.mahebourg@nic.mu',
+      'csr.rosehill@nic.mu'
     ]
-    return testEmails.includes(email) || email.includes('.test@') || email.includes('test@') || email.includes('.admin@')
+    return testEmails.includes(email) || email.includes('.test@') || email.includes('test@') || email.includes('.admin@') || email.includes('csr.')
   }
 
   // Store OTP with expiry

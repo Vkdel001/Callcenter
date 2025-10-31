@@ -1,0 +1,21 @@
+policy_number,name,mobile,email,amount_due,status,last_call_date,total_attempts,sales_agent_id,line_of_business,assigned_month,title_owner1,title_owner2,name_owner2,address,national_id,branch_id
+LIFE-CSR-001,John Doe Port Louis,57111001,john.portlouis@test.com,5000.00,pending,2024-10-15,0,SA001,life,2024-10,Mr,,Jane Doe,123 Royal Road Port Louis,ID123456789,1
+HEALTH-CSR-001,Mary Smith Port Louis,57111002,mary.portlouis@test.com,3500.50,pending,2024-10-15,0,SA001,health,2024-11,Mrs,Mr,John Smith,456 Pope Hennessy Street Port Louis,ID789012345,1
+MOTOR-CSR-001,David Brown Port Louis,57111003,david.portlouis@test.com,7500.25,pending,2024-10-15,0,SA002,motor,2024-10,Dr,,,789 Sir William Newton Street Port Louis,ID345678901,1
+LIFE-CSR-002,Sarah Johnson Port Louis,57111004,sarah.portlouis@test.com,2800.75,contacted,2024-10-10,2,,life,2024-09,Ms,,,321 Bourbon Street Port Louis,ID901234567,1
+HEALTH-CSR-002,Michael Wilson Port Louis,57111005,michael.portlouis@test.com,4200.00,pending,2024-10-15,0,,health,2024-10,Mr,Mrs,Lisa Wilson,654 Chaussee Street Port Louis,ID567890123,1
+MOTOR-CSR-002,Emma Davis Port Louis,57111006,emma.portlouis@test.com,1950.30,pending,2024-10-15,0,SA003,motor,2024-11,Mrs,,,987 Intendance Street Port Louis,ID234567890,1
+LIFE-CSR-003,Robert Taylor Port Louis,57111007,robert.portlouis@test.com,6300.00,pending,2024-10-15,0,,life,2024-12,Mr,,,147 Farquhar Street Port Louis,ID678901234,1
+HEALTH-CSR-003,Lisa Anderson Port Louis,57111008,lisa.portlouis@test.com,2750.80,contacted,2024-10-12,1,SA001,health,2024-09,Ms,,,258 Desforges Street Port Louis,ID345678912,1
+MOTOR-CSR-003,James Miller Port Louis,57111009,james.portlouis@test.com,5100.45,pending,2024-10-15,0,,motor,2024-10,Mr,Mrs,Helen Miller,369 Jummah Mosque Street Port Louis,ID789012346,1
+LIFE-CSR-004,Jennifer Garcia Port Louis,57111010,jennifer.portlouis@test.com,3900.20,pending,2024-10-15,0,SA002,life,2024-11,Mrs,,,741 Emmanuel Anquetil Street Port Louis,ID012345678,1
+LIFE-CSR-005,Paul Martinez Curepipe,57222001,paul.curepipe@test.com,4500.00,pending,2024-10-15,0,SA001,life,2024-10,Mr,,,123 Royal Road Curepipe,ID111222333,2
+HEALTH-CSR-004,Anna Rodriguez Curepipe,57222002,anna.curepipe@test.com,2900.75,contacted,2024-10-11,1,,health,2024-09,Mrs,Mr,Carlos Rodriguez,456 Thomy d'Arifat Street Curepipe,ID444555666,2
+MOTOR-CSR-004,Kevin Lee Curepipe,57222003,kevin.curepipe@test.com,6200.50,pending,2024-10-15,0,SA003,motor,2024-11,Mr,,,789 Chasteauneuf Street Curepipe,ID777888999,2
+LIFE-CSR-006,Michelle White Curepipe,57222004,michelle.curepipe@test.com,3300.25,pending,2024-10-15,0,,life,2024-12,Ms,,,321 Celicourt Antelme Street Curepipe,ID000111222,2
+HEALTH-CSR-005,Daniel Thompson Curepipe,57222005,daniel.curepipe@test.com,5800.00,pending,2024-10-15,0,SA001,health,2024-10,Dr,Mrs,Susan Thompson,654 Edgar Laurent Street Curepipe,ID333444555,2
+MOTOR-CSR-005,Rachel Clark Curepipe,57222006,rachel.curepipe@test.com,2100.80,contacted,2024-10-13,2,,motor,2024-09,Mrs,,,987 Vandermeersch Street Curepipe,ID666777888,2
+LIFE-CSR-007,Christopher Lewis Flacq,57333001,chris.flacq@test.com,7200.00,pending,2024-10-15,0,SA002,life,2024-11,Mr,,,123 Royal Road Flacq,ID999000111,3
+HEALTH-CSR-006,Amanda Walker Flacq,57333002,amanda.flacq@test.com,4100.30,pending,2024-10-15,0,,health,2024-10,Mrs,Mr,Mark Walker,456 Camp de Masque Road Flacq,ID222333444,3
+MOTOR-CSR-006,Steven Hall Flacq,57333003,steven.flacq@test.com,3700.60,contacted,2024-10-14,1,SA003,motor,2024-12,Mr,,,789 Beau Champ Road Flacq,ID555666777,3
+LIFE-CSR-008,Nicole Young Flacq,57333004,nicole.flacq@test.com,5500.90,pending,2024-10-15,0,,life,2024-09,Ms,,,321 Centre de Flacq Road,ID888999000,3

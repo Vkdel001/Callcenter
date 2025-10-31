@@ -16,7 +16,7 @@ const LOBDashboard = () => {
   const [sortBy, setSortBy] = useState('amount_desc') // amount_desc, amount_asc, name_asc
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrData, setQrData] = useState(null)
-  const [qrLoading, setQrLoading] = useState(false)
+  const [loadingCustomers, setLoadingCustomers] = useState(new Set())
   const modalStateRef = useRef({ showModal: false, data: null })
 
   // Format month display consistently
@@ -46,34 +46,49 @@ const LOBDashboard = () => {
   // Load customer data when month is selected via URL
   useEffect(() => {
     const loadCustomerData = async () => {
-      if (lobType && month && user?.sales_agent_id) {
-        console.log(`Loading customers for ${lobType} - ${month}`)
-        setCustomerListLoading(true)
+      // Check if we have the required parameters and valid user type
+      if (!lobType || !month || !user?.agent_type) return
+      
+      // Validate user type and required fields
+      if (user.agent_type === 'sales_agent' && !user.sales_agent_id) return
+      if (user.agent_type !== 'sales_agent' && user.agent_type !== 'csr') return
 
-        try {
-          const result = await customerService.getSalesAgentCustomersForLOBMonth(
+      console.log(`Loading customers for ${lobType} - ${month} (${user.agent_type})`)
+      setCustomerListLoading(true)
+
+      try {
+        let result
+
+        // Choose data source based on user type
+        if (user.agent_type === 'sales_agent') {
+          result = await customerService.getSalesAgentCustomersForLOBMonth(
             user.sales_agent_id,
             lobType,
             month
           )
-
-          if (result.success) {
-            setCustomerListData(result)
-            setError(null)
-          } else {
-            setError(result.error || 'Failed to load customers')
-          }
-        } catch (err) {
-          console.error('Error loading customers:', err)
-          setError('Failed to load customers')
-        } finally {
-          setCustomerListLoading(false)
+        } else if (user.agent_type === 'csr') {
+          result = await customerService.getCSRCustomersForLOBMonth(
+            lobType,
+            month
+          )
         }
+
+        if (result.success) {
+          setCustomerListData(result)
+          setError(null)
+        } else {
+          setError(result.error || 'Failed to load customers')
+        }
+      } catch (err) {
+        console.error('Error loading customers:', err)
+        setError('Failed to load customers')
+      } finally {
+        setCustomerListLoading(false)
       }
     }
 
     loadCustomerData()
-  }, [lobType, month, user?.sales_agent_id])
+  }, [lobType, month, user?.agent_type, user?.sales_agent_id])
 
   // Reset search when URL changes
   useEffect(() => {
@@ -85,15 +100,31 @@ const LOBDashboard = () => {
 
   useEffect(() => {
     const fetchLOBData = async () => {
-      if (!user?.sales_agent_id) {
+      // Validate user type and required fields
+      if (user?.agent_type === 'sales_agent' && !user?.sales_agent_id) {
         setError('Sales agent ID not found')
+        setLoading(false)
+        return
+      }
+
+      if (!user?.agent_type || (user.agent_type !== 'sales_agent' && user.agent_type !== 'csr')) {
+        setError('Invalid user type for LOB dashboard')
         setLoading(false)
         return
       }
 
       try {
         setLoading(true)
-        const result = await customerService.getSalesAgentLOBSummary(user.sales_agent_id)
+        let result
+
+        // Choose data source based on user type
+        if (user.agent_type === 'sales_agent') {
+          console.log('Fetching LOB data for Sales Agent:', user.sales_agent_id)
+          result = await customerService.getSalesAgentLOBSummary(user.sales_agent_id)
+        } else if (user.agent_type === 'csr') {
+          console.log('Fetching LOB data for CSR (universal access)')
+          result = await customerService.getCSRLOBSummary()
+        }
 
         if (result.success) {
           setLobData(result)
@@ -110,7 +141,7 @@ const LOBDashboard = () => {
     }
 
     fetchLOBData()
-  }, [user?.sales_agent_id])
+  }, [user?.agent_type, user?.sales_agent_id])
 
   const handleLOBClick = (selectedLobType) => {
     console.log(`Clicked on ${selectedLobType} LOB`)
@@ -128,7 +159,7 @@ const LOBDashboard = () => {
   const handleGenerateQR = async (customer) => {
     try {
       console.log('Generating QR for customer:', customer.name)
-      setQrLoading(true)
+      setLoadingCustomers(prev => new Set([...prev, customer.id]))
 
       // Use the existing QR generation service
       const qrResult = await customerService.generateQRCode({
@@ -157,7 +188,11 @@ const LOBDashboard = () => {
       console.error('QR generation failed:', error)
       alert('❌ Failed to generate QR code')
     } finally {
-      setQrLoading(false)
+      setLoadingCustomers(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(customer.id)
+        return newSet
+      })
     }
   }
 
@@ -443,19 +478,21 @@ const LOBDashboard = () => {
                           // Now use real QR generation
                           handleGenerateQR(customer)
                         }}
-                        disabled={qrLoading}
+                        disabled={loadingCustomers.has(customer.id)}
                         className="px-6 py-3 bg-purple-600 text-white text-base font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center shadow-lg"
                       >
-                        {qrLoading ? (
-                          <svg className="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
+                        {loadingCustomers.has(customer.id) ? (
+                          <>
+                            <svg className="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Generating...
+                          </>
                         ) : (
-                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12h-4.01M12 12v4m-4-4h4m0 0V8a4 4 0 118 0v4M8 12h.01" />
-                          </svg>
+                          <>
+                            📱 Generate QR
+                          </>
                         )}
-                        {qrLoading ? 'Generating...' : 'Generate QR'}
                       </button>
                     </div>
                   </div>
@@ -685,9 +722,14 @@ const LOBDashboard = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Sales Portfolio Dashboard</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {user?.agent_type === 'csr' ? 'Customer Service Dashboard' : 'Sales Portfolio Dashboard'}
+              </h1>
               <p className="text-gray-600 mt-1">
-                Welcome back! You have {totalCustomers} customers across all lines of business.
+                {user?.agent_type === 'csr' 
+                  ? `Welcome back! You have access to ${totalCustomers} customers across all branches and lines of business.`
+                  : `Welcome back! You have ${totalCustomers} customers across all lines of business.`
+                }
               </p>
             </div>
             <div className="text-right">

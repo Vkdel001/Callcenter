@@ -813,13 +813,403 @@ sudo systemctl restart nic-reminder
 
 ---
 
+## Backend Reminder Service & SMS Monitoring
+
+### Overview
+The NIC Call Center system includes an automated reminder service that sends payment and signature reminders via email and SMS using the Brevo API. This section documents the **current production setup** and covers monitoring, troubleshooting, and verifying the service functionality.
+
+### Current Production Setup
+
+#### **Reminder Service Configuration**
+- **Service Type**: Manual Node.js process (not systemd service)
+- **Process Owner**: www-data user
+- **Service File**: `/var/www/nic-callcenter/backend-reminder-service.cjs`
+- **Log Location**: `/var/log/nic-reminder-service.log`
+- **Execution Frequency**: Every 30 minutes
+- **Started**: October 28, 2025 (running continuously)
+
+#### **SMS Service Configuration**
+- **Provider**: Brevo (SendinBlue) SMS API
+- **API Endpoint**: `https://api.brevo.com/v3/transactionalSMS/sms`
+- **Phone Format**: International (+230 for Mauritius)
+- **SMS Templates**: 
+  - Frontend: `src/services/emailService.js` (Line ~767)
+  - Backend: `backend-reminder-service.cjs` (Line ~680)
+- **Character Limit**: Sender max 11 characters
+- **Unicode Support**: Configurable
+
+#### **Current Process Details**
+```bash
+# Actual running process (as of Oct 31, 2025):
+www-data  467330  1  0 Oct28 ?  00:00:02 /usr/bin/node /var/www/nic-callcenter/backend-reminder-service.cjs
+
+# Process characteristics:
+- PID: 467330
+- Parent: 1 (init process)
+- User: www-data
+- Started: Oct 28, 2025
+- CPU Time: 00:00:02 (very low usage)
+- Status: Stable, no restarts
+```
+
+### Service Architecture
+```
+Backend Reminder Service (Node.js)
+├── Payment Reminders (Every 30 minutes)
+├── Signature Reminders (AOD documents)
+├── Email Service (Brevo API)
+├── SMS Service (Brevo API)
+└── Logging (/var/log/nic-reminder-service.log)
+```
+
+### 1. Check Service Status
+
+#### **Verify Service is Running (Current Setup)**
+```bash
+# Check if reminder process is active
+ps -ef | grep "reminder"
+
+# Expected output (current production):
+# www-data  467330  1  0 Oct28 ?  00:00:02 /usr/bin/node /var/www/nic-callcenter/backend-reminder-service.cjs
+
+# Alternative check
+pgrep -f "reminder-service"
+# Expected: 467330 (or similar PID)
+
+# Note: systemctl commands will NOT work as this is not a systemd service
+# sudo systemctl status nic-reminder-service  # ❌ Will fail: "Unit could not be found"
+```
+
+#### **Monitor Process Stability**
+```bash
+# Monitor process over time
+watch -n 5 "ps -fp $(pgrep -f 'reminder-service')"
+
+# Check process uptime and resource usage
+ps -eo pid,ppid,cmd,etime,pcpu,pmem | grep reminder
+```
+
+### 2. Log File Analysis
+
+#### **Main Log File Location**
+```bash
+# Primary log file
+/var/log/nic-reminder-service.log
+```
+
+#### **View Recent Activity**
+```bash
+# View last 50 log entries
+tail -50 /var/log/nic-reminder-service.log
+
+# View today's logs
+grep "$(date +%Y-%m-%d)" /var/log/nic-reminder-service.log
+
+# Monitor real-time activity
+tail -f /var/log/nic-reminder-service.log
+```
+
+#### **Check for Specific Activity**
+```bash
+# Look for successful reminders
+grep -E "(reminder sent|SMS sent|email sent)" /var/log/nic-reminder-service.log
+
+# Check for errors
+grep -i error /var/log/nic-reminder-service.log
+
+# Check API connectivity
+grep -E "(Xano|Brevo)" /var/log/nic-reminder-service.log
+
+# Check reminder cycles
+grep "Starting reminder cycle" /var/log/nic-reminder-service.log
+```
+
+### 3. Current Production Log Analysis
+
+#### **Actual Production Logs (Oct 31, 2025)**
+```
+2025-10-31T06:16:35.202Z [INFO] Processing signature reminders...
+2025-10-31T06:16:35.694Z [INFO] Found 0 pending signatures
+2025-10-31T06:16:35.695Z [INFO] Reminder cycle completed successfully
+2025-10-31T06:46:33.276Z [INFO] Starting reminder cycle...
+2025-10-31T06:46:33.277Z [INFO] Processing payment reminders...
+2025-10-31T06:46:35.158Z [INFO] Found 0 installments needing reminders
+2025-10-31T06:46:35.158Z [INFO] DEBUG: Sample customers | Data: {"totalCustomers":21,"sampleEmails":["jane@example.com","bob@example.com","jennifer.flacq@test.com","john.portlouis@test.com","exclusive.beta@test.com"]}
+2025-10-31T06:46:35.158Z [INFO] Processing signature reminders...
+2025-10-31T06:46:35.552Z [INFO] Found 0 pending signatures
+2025-10-31T06:46:35.552Z [INFO] Reminder cycle completed successfully
+```
+
+#### **Log Analysis - Current Status**
+- ✅ **Service Running**: Cycles every 30 minutes (06:16 → 06:46)
+- ✅ **Database Connected**: Found 21 total customers
+- ✅ **API Working**: Successfully querying Xano database
+- ✅ **No Overdue Payments**: 0 installments needing reminders (good news!)
+- ✅ **No Pending Signatures**: 0 AOD documents awaiting signatures
+- ✅ **Stable Operation**: "Reminder cycle completed successfully"
+
+#### **What "0 installments needing reminders" Means**
+This indicates that **all customers are up to date with payments** - which is excellent for business! The service is working correctly and will automatically start sending reminders when payments become overdue.
+
+#### **Expected Logs When Reminders Are Sent**
+```
+2025-10-31T07:16:33.276Z [INFO] Found 3 installments needing reminders
+2025-10-31T07:16:35.158Z [INFO] Payment reminder sent | Data: {"customerId":123,"email":"customer@email.com"}
+2025-10-31T07:16:36.234Z [INFO] Payment SMS sent | Data: {"customerId":123,"mobile":"+23012345678"}
+```
+
+### 4. SMS Service Verification
+
+#### **SMS Content Generation Locations**
+1. **Frontend SMS Templates**: `src/services/emailService.js` (Line ~767)
+2. **Backend SMS Templates**: `backend-reminder-service.cjs` (Line ~680)
+
+#### **SMS Template Examples**
+**Payment Reminder SMS:**
+```
+NIC Life Insurance: OVERDUE - MUR 5,000 was due 2025-10-15. 
+Pay now: https://payments.niclmauritius.site/reminder/123. 
+Ignore if already paid.
+```
+
+**Installment Reminder SMS:**
+```
+NIC Life Insurance
+Payment Due: MUR 1,500
+Due Date: 2025-11-01
+Installment 2 of 6
+
+Pay now: https://payments.niclmauritius.site/reminder/456
+Ignore if already paid.
+
+Policy: LIFE-001234
+```
+
+#### **Brevo SMS API Configuration**
+```bash
+# Check Brevo API configuration
+grep -E "BREVO.*API" /var/www/nic-callcenter/.env
+
+# Expected variables:
+# VITE_BREVO_API_KEY=your-brevo-api-key
+```
+
+### 5. Troubleshooting Common Issues
+
+#### **Service Not Running**
+```bash
+# If process not found, check for service files
+ls -la /etc/systemd/system/nic-reminder*
+
+# If systemd service exists
+sudo systemctl status nic-reminder-service
+sudo systemctl start nic-reminder-service
+
+# If running as manual process, restart
+cd /var/www/nic-callcenter
+sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
+```
+
+#### **No Log Activity**
+```bash
+# Check log file permissions
+ls -la /var/log/nic-reminder-service.log
+
+# Create log file if missing
+sudo touch /var/log/nic-reminder-service.log
+sudo chown www-data:www-data /var/log/nic-reminder-service.log
+sudo chmod 644 /var/log/nic-reminder-service.log
+```
+
+#### **API Connection Issues**
+```bash
+# Test Xano API connectivity
+curl -H "Content-Type: application/json" "https://your-xano-url/api:your-key/nic_cc_installment"
+
+# Test Brevo API connectivity
+curl -X POST "https://api.brevo.com/v3/smtp/email" \
+  -H "api-key: your-brevo-api-key" \
+  -H "Content-Type: application/json"
+```
+
+### 6. Service Performance Monitoring
+
+#### **Check Service Frequency**
+```bash
+# Verify 30-minute intervals
+grep "Starting reminder cycle" /var/log/nic-reminder-service.log | tail -10
+
+# Calculate time differences between cycles
+awk '/Starting reminder cycle/ {print $1 " " $2}' /var/log/nic-reminder-service.log | tail -5
+```
+
+#### **Monitor Resource Usage**
+```bash
+# Check memory and CPU usage
+ps -p $(pgrep -f 'reminder-service') -o pid,ppid,pcpu,pmem,cmd
+
+# Monitor network connections
+sudo netstat -p | grep $(pgrep -f 'reminder-service')
+```
+
+### 7. Manual Testing
+
+#### **Test SMS Functionality**
+Use the frontend testing interface:
+1. Navigate to `/test/payment-plan` in your application
+2. Configure SMS test with Mauritius phone number (+230XXXXXXXX)
+3. Click "Test SMS" button
+4. Check logs for SMS delivery confirmation
+
+#### **Current Process Management (Manual Setup)**
+```bash
+# Check current process
+ps -fp $(pgrep -f 'reminder-service')
+
+# Stop current process
+sudo pkill -f 'reminder-service'
+
+# Start new process (current method)
+cd /var/www/nic-callcenter
+sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
+
+# Verify new process started
+ps -ef | grep "reminder" | grep -v grep
+
+# Note: Process will automatically restart checking every 30 minutes
+```
+
+#### **Process Restart Procedure (Current Setup)**
+```bash
+# 1. Find current process ID
+CURRENT_PID=$(pgrep -f 'reminder-service')
+echo "Current PID: $CURRENT_PID"
+
+# 2. Stop current process
+sudo kill $CURRENT_PID
+
+# 3. Verify process stopped
+ps -fp $CURRENT_PID  # Should show "No such process"
+
+# 4. Start new process
+cd /var/www/nic-callcenter
+sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
+
+# 5. Get new process ID
+NEW_PID=$(pgrep -f 'reminder-service')
+echo "New PID: $NEW_PID"
+
+# 6. Monitor new process
+tail -f /var/log/nic-reminder-service.log
+```
+
+### 8. Service Health Indicators
+
+#### **✅ Healthy Service Signs**
+- Process running continuously for days/weeks
+- Regular "Starting reminder cycle" entries every 30 minutes
+- "Reminder cycle completed successfully" messages
+- Database connectivity showing customer counts
+- No error messages in logs
+
+#### **❌ Problem Indicators**
+- Process not found or frequently restarting
+- Error messages about API connectivity
+- "Failed to send" messages in logs
+- No log activity for extended periods
+- High CPU/memory usage
+
+### 9. Brevo SMS Integration Details
+
+#### **SMS API Endpoint**
+```
+POST https://api.brevo.com/v3/transactionalSMS/sms
+```
+
+#### **Phone Number Formatting**
+- **Input**: Various formats (57111111, +23057111111, etc.)
+- **Output**: International format (+23057111111)
+- **Validation**: Mauritius country code (+230) automatically added
+
+#### **SMS Delivery Tracking**
+```bash
+# Check SMS delivery logs
+grep "SMS sent successfully" /var/log/nic-reminder-service.log
+
+# Check SMS failures
+grep "SMS sending failed" /var/log/nic-reminder-service.log
+```
+
+### 10. Current Environment Configuration
+
+#### **Required Environment Variables**
+```bash
+# Check current Brevo configuration
+grep -E "BREVO.*API" /var/www/nic-callcenter/.env
+
+# Expected variables:
+VITE_BREVO_API_KEY=your-brevo-api-key-here
+VITE_SENDER_EMAIL=arrears@niclmauritius.site
+VITE_SENDER_NAME=NIC Life Insurance Mauritius
+```
+
+#### **SMS Service Configuration Files**
+```bash
+# Frontend SMS service
+/var/www/nic-callcenter/src/services/emailService.js
+
+# Backend SMS service  
+/var/www/nic-callcenter/backend-reminder-service.cjs
+
+# Environment configuration
+/var/www/nic-callcenter/.env
+```
+
+### 11. Differences: Current vs Intended Setup
+
+#### **Current Production Setup (Manual Process)**
+- ✅ **Running**: Manual Node.js process since Oct 28, 2025
+- ✅ **Stable**: No crashes, continuous operation
+- ✅ **Logging**: Working to `/var/log/nic-reminder-service.log`
+- ❌ **Management**: No systemctl commands (not systemd service)
+- ❌ **Auto-restart**: No automatic restart on failure
+
+#### **Intended Setup (Systemd Service)**
+- ✅ **Service Management**: `sudo systemctl start/stop/restart nic-reminder`
+- ✅ **Auto-restart**: Automatic restart on failure
+- ✅ **Boot Startup**: Starts automatically on server boot
+- ✅ **Better Logging**: Integration with journalctl
+- ❌ **Current Status**: Not implemented in production
+
+#### **Migration to Systemd (Optional)**
+```bash
+# To convert current setup to systemd service:
+cd /var/www/nic-callcenter
+
+# Stop current manual process
+sudo pkill -f 'reminder-service'
+
+# Install as systemd service
+sudo ./install-reminder-service.sh
+
+# Start systemd service
+sudo systemctl start nic-reminder
+sudo systemctl enable nic-reminder
+
+# Verify systemd service
+sudo systemctl status nic-reminder
+```
+
+---
+
 ## Contact Information
 
 For technical support:
 - **Repository**: https://github.com/Vkdel001/Callcenter
 - **Documentation**: Check README.md and project documentation
-- **Logs Location**: `/var/log/nic-reminder-service.log`
-- **Service Management**: Use `./reminder-service-manager.sh` script
+- **Current Logs**: `/var/log/nic-reminder-service.log`
+- **Current Process**: Manual Node.js process (PID: check with `pgrep -f reminder-service`)
+- **SMS Service**: Brevo API integration (frontend + backend)
 
 ---
 

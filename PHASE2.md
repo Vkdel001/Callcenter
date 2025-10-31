@@ -10,6 +10,7 @@ Phase 2 adds comprehensive multi-agent support with sales agents, multi-line of 
 1. **Call Center Agents**: Access ONLY call center exclusive data (branch 6) for assignment/calling (REVISED)
 2. **Internal Agents**: Access ALL customers from their branch (including sales agent customers) for assignment/calling (REVISED)
 3. **Sales Agents**: View-only access to their onboarded customers via LOB → Month dashboard (NO fetching/assignment) (NEW)
+4. **CSR (Customer Service Representatives)**: Universal access to ALL customers from ALL branches via LOB dashboard interface (NEW)
 
 ### **LOB-Specific Admin Types (NEW ARCHITECTURE)**
 1. **Super Admin**: Access to ALL LOBs + system administration + all agent management
@@ -64,7 +65,7 @@ CREATE INDEX idx_sales_lob_month ON nic_cc_customer(sales_agent_id, line_of_busi
 -- Add new fields to existing agent table
 ALTER TABLE nic_cc_agent ADD COLUMN:
 - sales_agent_id VARCHAR(50) NULL                    -- External sales agent ID (for sales agents only)
-- agent_type ENUM('call_center', 'internal', 'sales_agent') NOT NULL DEFAULT 'call_center'
+- agent_type ENUM('call_center', 'internal', 'sales_agent', 'csr') NOT NULL DEFAULT 'call_center'  -- Added CSR type
 - admin_lob ENUM('super_admin', 'life', 'motor', 'health', 'call_center') NULL  -- LOB-specific admin access (NEW)
 
 -- Add indexes for performance
@@ -103,6 +104,8 @@ id | name | email | agent_type | sales_agent_id | branch_id | active
 2  | Internal Agent    | int@nic.mu | internal | NULL | 1 | TRUE  
 3  | Sales Agent John  | sa1@nic.mu | sales_agent | SA001 | NULL | TRUE
 4  | Sales Agent Mary  | sa2@nic.mu | sales_agent | SA002 | NULL | TRUE
+5  | CSR Port Louis    | csr1@nic.mu | csr | NULL | 1 | TRUE
+6  | CSR Curepipe      | csr2@nic.mu | csr | NULL | 2 | TRUE
 ```
 
 ---
@@ -284,27 +287,37 @@ id | name | email | agent_type | sales_agent_id | branch_id | active
 4. **Update `AgentManagement.jsx`** - Restrict to Life Admin + Super Admin only
 5. **Create LOB-specific admin views** - Motor/Health/Life/CallCenter admin interfaces
 
-### **Phase 3.4: Lower Priority Features (DEFERRED)**
+### **Phase 3.4: CSR Implementation (1-2 days) - NEW PRIORITY**
+1. **Update `nic_cc_agent` table** - Add 'csr' to agent_type enum
+2. **Create CSR test users** - Add CSR users for each branch
+3. **Update `authService.js`** - Handle CSR agent type in authentication
+4. **Create `getCSRLOBSummary()` function** - Universal LOB data aggregation (all branches)
+5. **Create `getCSRCustomersForLOBMonth()` function** - CSR customer filtering (global access)
+6. **Update Dashboard routing** - Include CSR → LOB Dashboard flow
+7. **Update LOB Dashboard** - Detect and handle CSR vs Sales Agent context
+8. **Test CSR workflows** - Complete end-to-end CSR user experience
+
+### **Phase 3.5: Lower Priority Features (DEFERRED)**
 1. **Sales Agent Management** - Use direct Xano upload for now
 2. **Advanced Reports** - LOB-specific reporting (later phase)
 3. **Bulk Upload Interfaces** - Sales agent bulk operations (later phase)
 4. **UX Enhancements** - Focus on core functionality first
 
-### **Phase 3.5: User Interface (0.5-1 days) - MOSTLY COMPLETE**
+### **Phase 3.6: User Interface (0.5-1 days) - MOSTLY COMPLETE**
 1. **✅ `CustomerList.jsx`** - Already has search functionality
 2. **✅ Smart search** - Already implemented in LOB dashboard
 3. **✅ `Dashboard.jsx`** - Already has LOB dashboard integration and agent-specific views
 4. **✅ `Navbar.jsx`** - Already has agent awareness
 5. **✅ LOB Dashboard** - Fully functional with month navigation and customer management
 
-### **Phase 3.6: Testing & Data Migration (1-2 days)**
+### **Phase 3.7: Testing & Data Migration (1-2 days)**
 1. **LOB Admin Testing** - Test all admin type access restrictions
 2. **Data Upload Validation** - Test strict LOB enforcement
 3. **Agent Management** - Test Life Admin centralized agent management
 4. **Integration testing** - End-to-end workflows for all admin types
 5. **User acceptance testing** - Real-world scenarios
 
-### **Phase 3.6: Production Deployment (1-2 days)**
+### **Phase 3.8: Production Deployment (1-2 days)**
 1. **Staging deployment** - Full system testing
 2. **Production database migration** - During maintenance window
 3. **Code deployment** - Staged rollout with monitoring
@@ -381,6 +394,7 @@ Note: Sales agents can view and work with customers but CANNOT fetch/assign new 
 | **Call Center** | ❌ No | ✅ Only | Branch 6 customers only | Can fetch/assign branch 6 customers | Traditional fetch system |
 | **Internal** | ✅ Their Branch | ❌ No | ALL branch customers (including sales agent customers) | Can fetch/assign branch customers | Traditional fetch system |
 | **Sales Agent** | ✅ View Their Customers | ❌ No | View-only their onboarded customers | ❌ Cannot fetch/assign customers | LOB dashboard → Month → Customer list |
+| **CSR** | ✅ ALL Branches | ❌ No | ALL customers from ALL branches (all LOBs) | ❌ View/service only (no fetch/assign) | LOB dashboard → Month → Customer list |
 
 ### **LOB Admin Access Control (NEW ARCHITECTURE)**
 | Admin Type | Customer Data Access | Agent Management | Data Upload Rights | Dashboard View |
@@ -396,6 +410,144 @@ Note: Sales agents can view and work with customers but CANNOT fetch/assign new 
 - **Example**: Motor Admin uploading Health data → ❌ **REJECTED**
 - **Branch 6 Campaigns**: Each LOB admin can upload their LOB data to branch 6
 - **Validation Logic**: `admin_lob` must match `line_of_business` in uploaded data
+
+---
+
+## 👥 **CSR (CUSTOMER SERVICE REPRESENTATIVE) ARCHITECTURE (NEW)**
+
+### **CSR User Type Overview**
+CSRs are universal customer service representatives who provide comprehensive support across all lines of business using the same intuitive LOB dashboard interface as sales agents, but with complete access to ALL customers from ALL branches. This enables any walk-in customer to receive service at any branch location.
+
+### **CSR Access Model**
+```
+CSR Characteristics:
+├── Location: Any branch location (universal service)
+├── Data Access: ALL customers from ALL branches (complete portfolio)
+├── UI Experience: LOB Dashboard (same as Sales Agents)
+├── Geographic Scope: GLOBAL ACCESS (all branches)
+├── LOB Scope: Life + Health + Motor (all products)
+└── Permissions: View + Customer Service (no assignment/fetching)
+```
+
+### **CSR vs Other Agent Types**
+| Feature | CSR | Sales Agent | Internal Agent | Call Center |
+|---------|-----|-------------|----------------|-------------|
+| **UI Experience** | LOB Dashboard | LOB Dashboard | Traditional List | Traditional List |
+| **Data Access** | **ALL customers (all branches)** | Own customers only | Branch customers only | Branch 6 only |
+| **LOB Scope** | All LOBs | All LOBs | All LOBs | All LOBs |
+| **Assignment Rights** | ❌ View/Service only | ❌ View only | ✅ Can fetch/assign | ✅ Can fetch/assign |
+| **Geographic Scope** | **GLOBAL ACCESS** | Customer-based | Branch-based | Call center only |
+
+### **CSR Workflow Design**
+```
+CSR Login (Any Branch Location)
+    ↓
+LOB Dashboard (Life/Health/Motor cards with ALL customer counts from ALL branches)
+    ↓ (Click LOB - e.g., "Health")
+Month Selection (Show months with ALL Health customers from ALL branches)
+    ↓ (Click Month - e.g., "Oct-25")
+Customer List (ALL Health + Oct-25 customers regardless of branch)
+    ↓ (Click Customer)
+Customer Detail Page (Universal customer service for any policy, any branch)
+```
+
+### **CSR Data Access Examples**
+```
+ANY CSR (Universal Access):
+- Life Insurance: 150 customers (ALL Life customers from ALL branches)
+- Health Insurance: 120 customers (ALL Health customers from ALL branches)  
+- Motor Insurance: 100 customers (ALL Motor customers from ALL branches)
+- Total Portfolio: 370 customers (complete system portfolio)
+
+Sales Agent SA001:
+- Life Insurance: 7 customers (Only SA001's Life customers)
+- Health Insurance: 6 customers (Only SA001's Health customers)
+- Motor Insurance: 5 customers (Only SA001's Motor customers)
+- Total Portfolio: 18 customers (own customers only)
+
+Internal Agent Branch 1:
+- Life Insurance: 45 customers (Branch 1 Life customers only)
+- Health Insurance: 32 customers (Branch 1 Health customers only)
+- Motor Insurance: 28 customers (Branch 1 Motor customers only)
+- Total Portfolio: 105 customers (branch-specific only)
+```
+
+### **CSR Implementation Requirements**
+
+**Database Changes:**
+```sql
+-- Add CSR agent type
+ALTER TABLE nic_cc_agent MODIFY agent_type 
+ENUM('call_center', 'internal', 'sales_agent', 'csr');
+
+-- Sample CSR Data:
+INSERT INTO nic_cc_agent (name, email, agent_type, branch_id, role) VALUES
+('CSR Port Louis', 'csr.portlouis@nic.mu', 'csr', 1, 'agent'),
+('CSR Curepipe', 'csr.curepipe@nic.mu', 'csr', 2, 'agent'),
+('CSR Flacq', 'csr.flacq@nic.mu', 'csr', 3, 'agent');
+```
+
+**Service Layer Updates:**
+```javascript
+// CSR LOB Summary Function (Universal Access)
+const getCSRLOBSummary = () => {
+  // Get ALL customers from ALL branches (except call center exclusive)
+  const allAccessibleCustomers = allCustomers.filter(customer => 
+    customer.branch_id !== 6  // Exclude only call center exclusive data
+  )
+  
+  // Group by LOB and month for dashboard display
+  return groupCustomersByLOBAndMonth(allAccessibleCustomers)
+}
+
+// CSR Customer Access Function (Global Access)
+const getCSRCustomersForLOBMonth = (lob, month) => {
+  return allCustomers.filter(customer =>
+    customer.line_of_business === lob &&
+    customer.assigned_month === month &&
+    customer.branch_id !== 6  // Exclude only call center exclusive data
+  )
+}
+```
+
+**UI Integration:**
+```javascript
+// Dashboard Routing Logic
+if (user.agent_type === 'sales_agent' || user.agent_type === 'csr') {
+  return <LOBDashboard />
+}
+
+// LOB Dashboard Data Source Detection
+const getLOBData = (user) => {
+  if (user.agent_type === 'sales_agent') {
+    return getSalesAgentLOBSummary(user.sales_agent_id)
+  }
+  
+  if (user.agent_type === 'csr') {
+    return getCSRLOBSummary()  // No parameters - universal access
+  }
+}
+```
+
+### **CSR Business Benefits**
+
+**For Branches:**
+- **Universal Customer Service**: Any CSR can serve any customer from any branch
+- **Complete System Access**: Full customer portfolio across all LOBs and branches
+- **Familiar Interface**: Same LOB dashboard as sales agents
+- **Walk-in Flexibility**: Customers can visit any branch for service
+
+**For Customers:**
+- **Branch Independence**: Can receive service at any NIC branch location
+- **Complete Service**: CSR has access to full customer history regardless of origin branch
+- **Consistent Experience**: Same service quality and access at all locations
+- **No Transfers Needed**: Single CSR can handle any policy from any branch
+
+**For Management:**
+- **Universal Service Coverage**: Complete customer service capability at every branch
+- **Operational Flexibility**: CSRs can cover for each other across branches
+- **Comprehensive Analytics**: System-wide customer service metrics
+- **Scalable Model**: Easy to add CSRs at any location with full capability
 
 ---
 
@@ -549,14 +701,15 @@ EXCL-001,Old Customer,old@email.com,57111114,600,6,,life,2024-12,Ms,,,321 Elm St
 |-------|------|--------|----------------|
 | 3.1 | Database Changes | ✅ **COMPLETED** | ~~1-2 days~~ |
 | 3.2 | Backend Services | ✅ **COMPLETED** | ~~1-2 days~~ |
-| 3.3 | LOB Admin Interface | 🔄 **HIGH PRIORITY** | 2-3 days |
-| 3.4 | Lower Priority Features | ⏳ **DEFERRED** | Later phase |
-| 3.5 | User Interface | ✅ **MOSTLY COMPLETE** | 0.5-1 days |
-| 3.6 | Testing & Migration | ⏳ **PENDING** | 1-2 days |
-| 3.7 | Production Deployment | ⏳ **PENDING** | 1 day |
-| **TOTAL** | **Remaining Core Implementation** | | **4.5-7 days** |
+| 3.3 | LOB Admin Interface | ✅ **COMPLETED** | ~~2-3 days~~ |
+| 3.4 | CSR Implementation | ⏳ **NEW PRIORITY** | 1-2 days |
+| 3.5 | Lower Priority Features | ⏳ **DEFERRED** | Later phase |
+| 3.6 | User Interface | ✅ **MOSTLY COMPLETE** | ~~0.5-1 days~~ |
+| 3.7 | Testing & Migration | ⏳ **PENDING** | 1-2 days |
+| 3.8 | Production Deployment | ⏳ **PENDING** | 1 day |
+| **TOTAL** | **Remaining Implementation** | | **3-5 days** |
 
-**Priority Focus**: LOB-specific admin architecture with strict data segregation. Sales agent management and advanced reports deferred to later phases.
+**Priority Focus**: CSR implementation for branch-based customer service across all LOBs. Advanced features deferred to later phases.
 
 ---
 
@@ -644,9 +797,9 @@ EXCL-001,Old Customer,old@email.com,57111114,600,6,,life,2024-12,Ms,,,321 Elm St
 - **Testing & Validation**: End-to-end workflow testing for all admin types
 
 ### **⏳ REMAINING TASKS**
-- **Customer Upload Enhancement**: LOB validation and new field support
+- **CSR Implementation**: Add CSR user type with branch-based LOB dashboard access ⏳ **NEW**
+- **Testing & Validation**: End-to-end workflow testing for all agent types (including CSR)
 - **Admin Interface Updates**: LOB-specific admin views and controls
-- **Testing & Validation**: End-to-end workflow testing for all admin types
 - **Production Deployment**: Final rollout and monitoring
 
 ## 📊 **COMPLETE DATABASE SCHEMA (UPDATED)**

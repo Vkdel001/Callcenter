@@ -4,9 +4,9 @@ import { useAuth } from '../../contexts/AuthContext'
 
 const Sidebar = () => {
   const { user } = useAuth()
-  
 
-  
+
+
   // Different navigation for different agent types
   const salesAgentNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' }
@@ -39,17 +39,16 @@ const Sidebar = () => {
   const navItems = getNavItems()
 
   return (
-    <aside className="w-64 bg-white shadow-sm border-r border-gray-200 min-h-screen">
+    <aside className="w-64 bg-white shadow-sm border-r border-gray-200 min-h-screen hidden md:block">
       <nav className="p-4 space-y-2">
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
-              `flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              `flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive
+                ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`
             }
           >

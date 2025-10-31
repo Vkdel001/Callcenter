@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import App from './App.jsx'
 import './index.css'
+import './styles/mobile.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {

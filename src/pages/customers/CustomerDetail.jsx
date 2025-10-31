@@ -315,7 +315,7 @@ const CustomerDetail = () => {
           </Link>
         </div>
 
-        <div className="flex space-x-3">
+        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-3">
           {existingAOD ? (
             <>
               <button

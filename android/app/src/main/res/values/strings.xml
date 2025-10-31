@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NIC Call Center</string>
+    <string name="title_activity_main">NIC Call Center</string>
+    <string name="package_name">com.nic.callcenter</string>
+    <string name="custom_url_scheme">com.nic.callcenter</string>
+</resources>

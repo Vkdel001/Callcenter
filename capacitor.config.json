@@ -1,0 +1,8 @@
+{
+  "appId": "com.nic.callcenter",
+  "appName": "NIC Call Center",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

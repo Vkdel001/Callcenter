@@ -365,6 +365,321 @@ npm run build
 
 ---
 
+## Code Changes & Deployment Process
+
+### Overview
+This section covers the complete workflow for making code changes, testing, and deploying updates to the production VPS server.
+
+### Current Hosting Architecture
+```
+Local Development → GitHub Repository → VPS Production Server
+                                    ↓
+                              Nginx serves static files from:
+                              /var/www/nic-callcenter/dist/
+```
+
+### 1. Development Workflow
+
+#### **Local Development**
+```bash
+# Start development server
+npm run dev
+
+# Test changes locally
+# - Verify functionality works
+# - Test on different screen sizes
+# - Check browser console for errors
+
+# Run linting (optional)
+npm run lint
+```
+
+#### **Pre-Deployment Checklist**
+- ✅ All features working locally
+- ✅ No console errors
+- ✅ Responsive design tested
+- ✅ New functionality tested with different user types
+- ✅ Environment variables updated (if needed)
+
+### 2. Git Workflow & Version Control
+
+#### **Commit Changes**
+```bash
+# Check what files changed
+git status
+
+# Add specific files (recommended)
+git add src/pages/auth/Login.jsx
+git add src/services/customerService.js
+git add src/components/sales/LOBDashboard.jsx
+
+# Or add all changes
+git add .
+
+# Commit with descriptive message
+git commit -m "Add CSR functionality, fix QR button loading states, update login title"
+
+# Push to GitHub
+git push origin main
+```
+
+#### **Commit Message Best Practices**
+```bash
+# Good commit messages:
+git commit -m "Add CSR universal access to LOB dashboard"
+git commit -m "Fix QR generation button loading state per customer"
+git commit -m "Update login page title to reflect portal purpose"
+git commit -m "Document current reminder service setup in deployment guide"
+
+# Avoid vague messages:
+git commit -m "fixes"
+git commit -m "updates"
+git commit -m "changes"
+```
+
+### 3. VPS Server Update Process
+
+#### **Step 1: Connect to VPS**
+```bash
+# SSH to your VPS server
+ssh root@your-vps-ip
+
+# Navigate to project directory
+cd /var/www/nic-callcenter
+```
+
+#### **Step 2: Pull Latest Changes**
+```bash
+# Check current status
+git status
+git log --oneline -5
+
+# Pull latest changes from GitHub
+git pull origin main
+
+# Verify changes were pulled
+git log --oneline -3
+```
+
+#### **Step 3: Update Dependencies (If Needed)**
+```bash
+# Only if package.json changed
+npm install
+
+# Check for any dependency issues
+npm audit
+```
+
+#### **Step 4: Build Application**
+```bash
+# Build the React application
+npm run build
+
+# Verify build completed successfully
+ls -la dist/
+
+# Check build size (should be reasonable)
+du -sh dist/
+```
+
+#### **Step 5: Restart Services**
+```bash
+# Reload Nginx to serve new files (no downtime)
+sudo systemctl reload nginx
+
+# Verify Nginx is running
+sudo systemctl status nginx
+```
+
+### 4. Backend Service Management
+
+#### **When to Restart Backend Services**
+- ✅ **Frontend Changes Only**: No restart needed
+- ✅ **Backend Changes**: Restart reminder service
+
+#### **Frontend-Only Changes (No Restart Needed)**
+- React component updates
+- CSS/styling changes
+- Frontend service modifications
+- UI text changes
+- New pages or routes
+
+#### **Backend Changes (Restart Required)**
+- `backend-reminder-service.cjs` modifications
+- Environment variable changes
+- New npm packages affecting backend
+
+#### **Restart Backend Service (If Needed)**
+```bash
+# Check current backend process
+ps -ef | grep "reminder"
+
+# Stop current process
+sudo pkill -f 'reminder-service'
+
+# Start new process
+cd /var/www/nic-callcenter
+sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
+
+# Verify new process started
+ps -ef | grep "reminder" | grep -v grep
+
+# Check logs for successful startup
+tail -f /var/log/nic-reminder-service.log
+```
+
+### 5. Deployment Verification
+
+#### **Test Website Functionality**
+```bash
+# Check website is accessible
+curl -I https://your-domain.com
+
+# Expected response: HTTP/2 200
+```
+
+#### **Browser Testing**
+1. **Open website in browser**
+2. **Test login functionality**
+3. **Verify new features work**
+4. **Check browser console for errors**
+5. **Test on mobile/tablet (responsive design)**
+
+#### **Check Logs for Issues**
+```bash
+# Check Nginx error logs
+sudo tail -20 /var/log/nginx/error.log
+
+# Check Nginx access logs
+sudo tail -20 /var/log/nginx/access.log
+
+# Check reminder service logs (if backend changes)
+tail -20 /var/log/nic-reminder-service.log
+```
+
+### 6. Rollback Procedures
+
+#### **If Deployment Fails**
+```bash
+# Option 1: Rollback to previous commit
+git log --oneline -10  # Find previous working commit
+git reset --hard <previous-commit-hash>
+npm run build
+sudo systemctl reload nginx
+
+# Option 2: Restore from backup (if available)
+cd /var/www
+sudo tar -xzf /var/backups/nic-callcenter/app-backup-YYYYMMDD-HHMMSS.tar.gz
+sudo systemctl reload nginx
+```
+
+#### **Emergency Rollback**
+```bash
+# Quick rollback to last known working state
+cd /var/www/nic-callcenter
+git reset --hard HEAD~1  # Go back 1 commit
+npm run build
+sudo systemctl reload nginx
+```
+
+### 7. Common Deployment Scenarios
+
+#### **Scenario 1: Frontend UI Changes**
+```bash
+# Example: Login page title change, button fixes, new components
+git pull origin main
+npm run build
+sudo systemctl reload nginx
+# ✅ No backend restart needed
+```
+
+#### **Scenario 2: New Features (Frontend + Backend)**
+```bash
+# Example: New user types, API changes, service modifications
+git pull origin main
+npm install  # If new dependencies
+npm run build
+sudo systemctl reload nginx
+
+# Restart backend if backend files changed
+sudo pkill -f 'reminder-service'
+sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
+```
+
+#### **Scenario 3: Environment Configuration Changes**
+```bash
+# Example: New API keys, service URLs
+git pull origin main
+# Update .env file with new variables
+nano /var/www/nic-callcenter/.env
+npm run build
+sudo systemctl reload nginx
+
+# Restart backend to pick up new environment variables
+sudo pkill -f 'reminder-service'
+sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
+```
+
+### 8. Deployment Troubleshooting
+
+#### **Build Fails**
+```bash
+# Check for syntax errors
+npm run lint
+
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm run build
+```
+
+#### **Website Not Loading**
+```bash
+# Check Nginx configuration
+sudo nginx -t
+
+# Check if files exist
+ls -la /var/www/nic-callcenter/dist/
+
+# Check Nginx logs
+sudo tail -50 /var/log/nginx/error.log
+```
+
+#### **Backend Service Issues**
+```bash
+# Check if process is running
+ps -ef | grep "reminder"
+
+# Check logs for errors
+tail -50 /var/log/nic-reminder-service.log
+
+# Test manual startup
+cd /var/www/nic-callcenter
+node backend-reminder-service.cjs  # Run in foreground to see errors
+```
+
+### 9. Best Practices
+
+#### **Development**
+- ✅ Test thoroughly locally before deploying
+- ✅ Use descriptive commit messages
+- ✅ Make small, focused commits
+- ✅ Test with different user types (admin, agent, sales, CSR)
+
+#### **Deployment**
+- ✅ Deploy during low-traffic periods
+- ✅ Always verify deployment success
+- ✅ Keep backups of working versions
+- ✅ Monitor logs after deployment
+
+#### **Maintenance**
+- ✅ Regular dependency updates
+- ✅ Monitor server resources
+- ✅ Keep deployment documentation updated
+- ✅ Test rollback procedures periodically
+
+---
+
 ## Monitoring & Maintenance
 
 ### 1. System Monitoring

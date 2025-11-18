@@ -158,7 +158,9 @@ const OTPVerification = () => {
                   key={index}
                   id={`otp${index}`}
                   {...register(`otp${index}`, { required: true })}
-                  type="text"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength="1"
                   className="w-12 h-12 text-center text-xl font-bold border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                   onChange={(e) => handleInputChange(index, e.target.value)}

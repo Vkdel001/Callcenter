@@ -1,7 +1,7 @@
 class QRService {
   constructor() {
     this.zwennPayApiUrl = 'https://api.zwennpay.com:9425/api/v1.0/Common/GetMerchantQR'
-    this.merchantId = import.meta.env.VITE_ZWENNPAY_MERCHANT_ID || 151
+    this.merchantId = import.meta.env.VITE_ZWENNPAY_MERCHANT_ID || 56
     this.testMode = import.meta.env.VITE_QR_TEST_MODE === 'true' || false
   }
 

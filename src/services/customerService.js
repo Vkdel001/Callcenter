@@ -944,5 +944,77 @@ NIC Life Insurance Mauritius`
         customers: []
       }
     }
+  },
+
+  // Get recent payments for a customer
+  async getCustomerPayments(customerId) {
+    try {
+      const { paymentApi } = await import('./apiClient')
+      
+      // Get all payments
+      const response = await paymentApi.get('/nic_cc_payment')
+      const allPayments = response.data || []
+
+      // Filter payments for this customer
+      const customerPayments = allPayments.filter(payment =>
+        payment.customer === parseInt(customerId)
+      )
+
+      // Sort by payment date (newest first)
+      const sortedPayments = customerPayments.sort((a, b) =>
+        new Date(b.payment_date) - new Date(a.payment_date)
+      )
+
+      // Return last 10 payments
+      return sortedPayments.slice(0, 10).map(payment => ({
+        id: payment.id,
+        amount: payment.amount,
+        paymentDate: payment.payment_date,
+        transactionReference: payment.transaction_reference,
+        status: payment.status,
+        oldBalance: payment.old_balance,
+        newBalance: payment.new_balance,
+        paymentStatusCode: payment.payment_status_code
+      }))
+    } catch (error) {
+      console.error('Failed to get customer payments:', error)
+      return []
+    }
+  },
+
+  // Get customer payment history
+  async getCustomerPayments(customerId) {
+    try {
+      const { paymentApi } = await import('./apiClient')
+      
+      // Get all payments
+      const response = await paymentApi.get('/nic_cc_payment')
+      const allPayments = response.data || []
+      
+      // Filter payments for this customer
+      const customerPayments = allPayments.filter(payment => 
+        payment.customer === parseInt(customerId)
+      )
+      
+      // Sort by payment date (newest first)
+      const sortedPayments = customerPayments.sort((a, b) =>
+        new Date(b.payment_date) - new Date(a.payment_date)
+      )
+      
+      // Return last 10 payments
+      return sortedPayments.slice(0, 10).map(payment => ({
+        id: payment.id,
+        amount: payment.amount,
+        paymentDate: payment.payment_date,
+        transactionReference: payment.transaction_reference,
+        status: payment.status,
+        oldBalance: payment.old_balance,
+        newBalance: payment.new_balance,
+        paymentStatusCode: payment.payment_status_code
+      }))
+    } catch (error) {
+      console.error('Failed to get customer payments:', error)
+      return []
+    }
   }
 }

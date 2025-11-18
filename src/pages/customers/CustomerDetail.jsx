@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
-import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText, Bell } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText, Bell, RefreshCw } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { useAuth } from '../../contexts/AuthContext'
 import AODModal from '../../components/modals/PaymentPlanModal'
@@ -23,8 +23,19 @@ const CustomerDetail = () => {
   const [downloadingAOD, setDownloadingAOD] = useState(false)
   const [sendingReminder, setSendingReminder] = useState(false)
   const [markingSignature, setMarkingSignature] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
+
+  // Get customer payments
+  const { data: payments = [], refetch: refetchPayments } = useQuery(
+    ['customerPayments', id],
+    () => customerService.getCustomerPayments(id),
+    { 
+      enabled: !!id,
+      refetchInterval: 30000 // Auto-refresh every 30 seconds
+    }
+  )
 
   // Helper function to copy QR image
   const copyQRToClipboard = async (qrCodeUrl) => {
@@ -181,6 +192,23 @@ const CustomerDetail = () => {
         qrCodeUrl: qrData.qrCodeUrl,
         paymentLink: qrData.paymentLink
       })
+    }
+  }
+
+  const handleRefreshBalance = async () => {
+    setRefreshing(true)
+    try {
+      // Refetch customer data
+      await queryClient.invalidateQueries(['customer', id])
+      // Refetch payments
+      await refetchPayments()
+      // Show success message
+      alert('Balance refreshed successfully!')
+    } catch (error) {
+      console.error('Failed to refresh balance:', error)
+      alert('Failed to refresh balance')
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -390,7 +418,17 @@ const CustomerDetail = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Amount Due</label>
-                <p className="mt-1 text-lg font-semibold text-red-600">{formatCurrency(customer.amountDue)}</p>
+                <div className="flex items-center space-x-2 mt-1">
+                  <p className="text-lg font-semibold text-red-600">{formatCurrency(customer.amountDue)}</p>
+                  <button
+                    onClick={handleRefreshBalance}
+                    disabled={refreshing}
+                    className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                    title="Refresh balance"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -637,6 +675,55 @@ const CustomerDetail = () => {
 
         {/* Call History Sidebar */}
         <div className="space-y-6">
+          {/* Payment History Widget */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Recent Payments</h3>
+              {payments.length > 0 && (
+                <span className="text-sm text-gray-500">
+                  {payments.length} payment{payments.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {payments.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {payments.map((payment) => (
+                  <div key={payment.id} className="border-l-4 border-green-200 pl-3 py-2 bg-green-50 rounded-r">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                        ✓ {payment.status}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(payment.paymentDate).toLocaleDateString()} {new Date(payment.paymentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Amount: {formatCurrency(payment.amount)}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Old Balance: {formatCurrency(payment.oldBalance)}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        New Balance: {formatCurrency(payment.newBalance)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Ref: {payment.transactionReference}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 text-center py-4">
+                No payments recorded yet
+              </div>
+            )}
+          </div>
+
+          {/* Call History */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">Call History</h3>

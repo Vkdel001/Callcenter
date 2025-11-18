@@ -5,6 +5,97 @@ class QRService {
     this.testMode = import.meta.env.VITE_QR_TEST_MODE === 'true' || false
   }
 
+  /**
+   * Sanitize policy number for QR code generation
+   * Replaces hyphens (-) and slashes (/) with dots (.)
+   * This ensures compatibility with payment systems and QR scanners
+   * 
+   * Examples:
+   * - "LIFE-001" → "LIFE.001"
+   * - "HEALTH/2024/001" → "HEALTH.2024.001"
+   * - "M-2024-001" → "M.2024.001"
+   * 
+   * @param {string} policyNumber - Original policy number
+   * @returns {string} Sanitized policy number safe for QR codes
+   */
+  sanitizePolicyNumber(policyNumber) {
+    if (!policyNumber) return ''
+    
+    // Replace all hyphens and slashes with dots
+    const sanitized = policyNumber
+      .replace(/-/g, '.')  // Replace all hyphens with dots
+      .replace(/\//g, '.')  // Replace all slashes with dots
+    
+    console.log(`Policy number sanitized: "${policyNumber}" → "${sanitized}"`)
+    return sanitized
+  }
+
+  /**
+   * Format customer name for QR code generation
+   * Ensures name fits within 24-character limit required by payment systems
+   * 
+   * Format: [Title] [FirstInitial] [LastName]
+   * 
+   * Examples:
+   * - "Mr Robert Davis Quatre Bornes" → "Mr R Bornes"
+   * - "Vikram Ronald Kumar" → "V Kumar"
+   * - "Mrs Sarah-Jane Wilson" → "Mrs S Wilson"
+   * 
+   * @param {string} fullName - Original customer full name
+   * @returns {string} Formatted name (max 24 characters)
+   */
+  formatCustomerNameForQR(fullName) {
+    if (!fullName) return ''
+    
+    // Clean and split name into parts
+    const parts = fullName.trim().split(/\s+/)
+    
+    if (parts.length === 0) return ''
+    
+    // Common titles to identify
+    const titles = ['Mr', 'Mrs', 'Ms', 'Dr', 'Miss', 'Prof', 'Sir', 'Madam']
+    
+    let title = ''
+    let startIndex = 0
+    
+    // Check if first part is a title
+    if (titles.includes(parts[0])) {
+      title = parts[0]
+      startIndex = 1
+    }
+    
+    // Handle single name case
+    if (parts.length === 1) {
+      const formatted = parts[0].substring(0, 24)
+      console.log(`Customer name formatted for QR: "${fullName}" → "${formatted}" (${formatted.length} chars)`)
+      return formatted
+    }
+    
+    // Get first name initial (no dot)
+    const firstName = parts[startIndex] || ''
+    const firstInitial = firstName.charAt(0).toUpperCase()
+    
+    // Get last name (last word in the name)
+    const lastName = parts[parts.length - 1] || ''
+    
+    // Format: [Title] [FirstInitial] [LastName]
+    let formatted = ''
+    if (title) {
+      formatted = `${title} ${firstInitial} ${lastName}`
+    } else {
+      formatted = `${firstInitial} ${lastName}`
+    }
+    
+    // Truncate if exceeds 24 characters
+    if (formatted.length > 24) {
+      formatted = formatted.substring(0, 24).trim()
+    }
+    
+    console.log(`Customer name formatted for QR: "${fullName}" (${fullName.length} chars) → "${formatted}" (${formatted.length} chars)`)
+    
+    return formatted
+  }
+
   async generatePaymentQR(customerData) {
     // If in test mode, use mock data
     if (this.testMode) {
@@ -12,6 +103,12 @@ class QRService {
     }
 
     try {
+      // Sanitize policy number for QR code compatibility
+      const sanitizedPolicyNumber = this.sanitizePolicyNumber(customerData.policyNumber)
+      
+      // Format customer name to fit 24-character limit
+      const formattedCustomerName = this.formatCustomerNameForQR(customerData.name)
+
       const payload = {
         "MerchantId": parseInt(this.merchantId),
         "SetTransactionAmount": true,
@@ -24,7 +121,7 @@ class QRService {
         "ConvenienceFeePercentage": 0,
         "SetAdditionalBillNumber": true,
         "AdditionalRequiredBillNumber": false,
-        "AdditionalBillNumber": customerData.policyNumber,
+        "AdditionalBillNumber": sanitizedPolicyNumber,
         "SetAdditionalMobileNo": true,
         "AdditionalRequiredMobileNo": false,
         "AdditionalMobileNo": customerData.mobile.replace(/[^\d]/g, ''), // Clean mobile number
@@ -39,7 +136,7 @@ class QRService {
         "AdditionalReferenceLabel": "",
         "SetAdditionalCustomerLabel": true,
         "AdditionalRequiredCustomerLabel": false,
-        "AdditionalCustomerLabel": customerData.name,
+        "AdditionalCustomerLabel": formattedCustomerName,
         "SetAdditionalTerminalLabel": false,
         "AdditionalRequiredTerminalLabel": false,
         "AdditionalTerminalLabel": "",
@@ -101,8 +198,14 @@ class QRService {
   // Generate test QR with valid ZwennPay-like data structure
   async generateTestQR(customerData) {
     try {
+      // Sanitize policy number for test QR as well
+      const sanitizedPolicyNumber = this.sanitizePolicyNumber(customerData.policyNumber)
+      
+      // Format customer name to fit 24-character limit
+      const formattedCustomerName = this.formatCustomerNameForQR(customerData.name)
+      
       // Simulate ZwennPay QR data format
-      const testQrData = `00020101021226580014com.zwennpay.qr01${this.merchantId.toString().padStart(2, '0')}${customerData.policyNumber}0208${customerData.amountDue.toString()}5204000053034805802MU5925NIC Life Insurance Maurit6009Port Louis620705036304`
+      const testQrData = `00020101021226580014com.zwennpay.qr01${this.merchantId.toString().padStart(2, '0')}${sanitizedPolicyNumber}0208${customerData.amountDue.toString()}5204000053034805802MU5925NIC Life Insurance Maurit6009Port Louis620705036304`
       
       const qrCodeUrl = await this.createBrandedQRCode(testQrData, customerData)
       
@@ -110,7 +213,7 @@ class QRService {
         success: true,
         qrData: testQrData,
         qrCodeUrl,
-        paymentLink: `https://zwennpay.com/pay?merchant=${this.merchantId}&amount=${customerData.amountDue}&ref=${customerData.policyNumber}`,
+        paymentLink: `https://zwennpay.com/pay?merchant=${this.merchantId}&amount=${customerData.amountDue}&ref=${sanitizedPolicyNumber}`,
         merchantId: this.merchantId,
         transactionAmount: customerData.amountDue,
         testMode: true

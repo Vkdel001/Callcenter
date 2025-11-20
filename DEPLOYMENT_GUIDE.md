@@ -524,7 +524,7 @@ sudo -u www-data nohup node backend-reminder-service.cjs > /dev/null 2>&1 &
 # Verify new process started
 ps -ef | grep "reminder" | grep -v grep
 
-# Check logs for successful startup
+# Check logs for successful startu
 tail -f /var/log/nic-reminder-service.log
 ```
 

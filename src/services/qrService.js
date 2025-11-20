@@ -1,8 +1,47 @@
 class QRService {
   constructor() {
     this.zwennPayApiUrl = 'https://api.zwennpay.com:9425/api/v1.0/Common/GetMerchantQR'
-    this.merchantId = import.meta.env.VITE_ZWENNPAY_MERCHANT_ID || 56
+    // LOB-specific merchant codes
+    this.merchantCodes = {
+      life: import.meta.env.VITE_ZWENNPAY_MERCHANT_LIFE || '56',
+      health: import.meta.env.VITE_ZWENNPAY_MERCHANT_HEALTH || '153',
+      motor: import.meta.env.VITE_ZWENNPAY_MERCHANT_MOTOR || '155'
+    }
+    // Fallback to old single merchant ID if new ones not configured
+    this.defaultMerchantId = import.meta.env.VITE_ZWENNPAY_MERCHANT_ID || '56'
     this.testMode = import.meta.env.VITE_QR_TEST_MODE === 'true' || false
+  }
+
+  /**
+   * Get merchant ID based on Line of Business (LOB)
+   * @param {string} lineOfBusiness - 'life', 'health', or 'motor'
+   * @returns {string} Merchant ID for the specified LOB
+   * @throws {Error} If LOB is invalid or merchant code not configured
+   */
+  getMerchantIdForLOB(lineOfBusiness) {
+    if (!lineOfBusiness) {
+      throw new Error('❌ Line of Business (LOB) is required')
+    }
+    
+    // Normalize LOB to lowercase
+    const lob = lineOfBusiness.toLowerCase().trim()
+    
+    // Validate LOB is one of the expected values
+    const validLOBs = ['life', 'health', 'motor']
+    if (!validLOBs.includes(lob)) {
+      throw new Error(`❌ Invalid Line of Business: "${lineOfBusiness}". Must be one of: life, health, motor`)
+    }
+    
+    // Get merchant code for LOB
+    const merchantId = this.merchantCodes[lob]
+    
+    if (!merchantId) {
+      throw new Error(`❌ Merchant code not configured for LOB: ${lob}. Please check environment variables.`)
+    }
+    
+    console.log(`🏦 Merchant ID selected: ${merchantId} for LOB: ${lob}`)
+    
+    return merchantId
   }
 
   /**
@@ -103,6 +142,30 @@ class QRService {
     }
 
     try {
+      // ✅ STEP 1: Fetch customer from Xano to get LOB
+      if (!customerData.id) {
+        throw new Error('❌ Customer ID is required to generate QR code')
+      }
+      
+      const { customerApi } = await import('./apiClient')
+      const customerResponse = await customerApi.get(`/nic_cc_customer/${customerData.id}`)
+      const fullCustomer = customerResponse.data
+      
+      if (!fullCustomer) {
+        throw new Error(`❌ Customer ${customerData.id} not found in database`)
+      }
+      
+      const lineOfBusiness = fullCustomer.line_of_business
+      
+      if (!lineOfBusiness) {
+        throw new Error(`❌ Customer ${customerData.id} (${customerData.name}) has no Line of Business (LOB) defined in database. Please update customer data.`)
+      }
+      
+      console.log(`📋 Customer ${customerData.id} (${customerData.name}): LOB = ${lineOfBusiness}`)
+      
+      // ✅ STEP 2: Get LOB-specific merchant ID
+      const merchantId = this.getMerchantIdForLOB(lineOfBusiness)
+      
       // Sanitize policy number for QR code compatibility
       const sanitizedPolicyNumber = this.sanitizePolicyNumber(customerData.policyNumber)
       
@@ -110,7 +173,7 @@ class QRService {
       const formattedCustomerName = this.formatCustomerNameForQR(customerData.name)
 
       const payload = {
-        "MerchantId": parseInt(this.merchantId),
+        "MerchantId": parseInt(merchantId),
         "SetTransactionAmount": true,
         "TransactionAmount": customerData.amountDue.toString(),
         "SetConvenienceIndicatorTip": false,
@@ -175,8 +238,9 @@ class QRService {
         qrData,
         qrCodeUrl,
         paymentLink: `https://zwennpay.com/pay?data=${encodeURIComponent(qrData)}`, // Adjust based on ZwennPay's payment URL structure
-        merchantId: this.merchantId,
-        transactionAmount: customerData.amountDue
+        merchantId: merchantId,
+        transactionAmount: customerData.amountDue,
+        lineOfBusiness: lineOfBusiness
       }
 
     } catch (error) {
@@ -198,6 +262,30 @@ class QRService {
   // Generate test QR with valid ZwennPay-like data structure
   async generateTestQR(customerData) {
     try {
+      // ✅ STEP 1: Fetch customer from Xano to get LOB (same as production)
+      if (!customerData.id) {
+        throw new Error('❌ [TEST MODE] Customer ID is required to generate QR code')
+      }
+      
+      const { customerApi } = await import('./apiClient')
+      const customerResponse = await customerApi.get(`/nic_cc_customer/${customerData.id}`)
+      const fullCustomer = customerResponse.data
+      
+      if (!fullCustomer) {
+        throw new Error(`❌ [TEST MODE] Customer ${customerData.id} not found in database`)
+      }
+      
+      const lineOfBusiness = fullCustomer.line_of_business
+      
+      if (!lineOfBusiness) {
+        throw new Error(`❌ [TEST MODE] Customer ${customerData.id} (${customerData.name}) has no Line of Business (LOB) defined in database. Please update customer data.`)
+      }
+      
+      console.log(`📋 [TEST MODE] Customer ${customerData.id} (${customerData.name}): LOB = ${lineOfBusiness}`)
+      
+      // ✅ STEP 2: Get LOB-specific merchant ID
+      const merchantId = this.getMerchantIdForLOB(lineOfBusiness)
+      
       // Sanitize policy number for test QR as well
       const sanitizedPolicyNumber = this.sanitizePolicyNumber(customerData.policyNumber)
       
@@ -205,7 +293,7 @@ class QRService {
       const formattedCustomerName = this.formatCustomerNameForQR(customerData.name)
       
       // Simulate ZwennPay QR data format
-      const testQrData = `00020101021226580014com.zwennpay.qr01${this.merchantId.toString().padStart(2, '0')}${sanitizedPolicyNumber}0208${customerData.amountDue.toString()}5204000053034805802MU5925NIC Life Insurance Maurit6009Port Louis620705036304`
+      const testQrData = `00020101021226580014com.zwennpay.qr01${merchantId.toString().padStart(2, '0')}${sanitizedPolicyNumber}0208${customerData.amountDue.toString()}5204000053034805802MU5925NIC Life Insurance Maurit6009Port Louis620705036304`
       
       const qrCodeUrl = await this.createBrandedQRCode(testQrData, customerData)
       
@@ -213,9 +301,10 @@ class QRService {
         success: true,
         qrData: testQrData,
         qrCodeUrl,
-        paymentLink: `https://zwennpay.com/pay?merchant=${this.merchantId}&amount=${customerData.amountDue}&ref=${sanitizedPolicyNumber}`,
-        merchantId: this.merchantId,
+        paymentLink: `https://zwennpay.com/pay?merchant=${merchantId}&amount=${customerData.amountDue}&ref=${sanitizedPolicyNumber}`,
+        merchantId: merchantId,
         transactionAmount: customerData.amountDue,
+        lineOfBusiness: lineOfBusiness,
         testMode: true
       }
     } catch (error) {

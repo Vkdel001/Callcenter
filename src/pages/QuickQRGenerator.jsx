@@ -88,12 +88,12 @@ const QuickQRGenerator = () => {
     }
     
     if (lob === 'motor') {
-      // Motor: Must start with P, 3-4 slashes, must have hyphen
+      // Motor: Must start with P, 3-5 slashes, must have hyphen
       if (!policyNumber.toUpperCase().startsWith('P')) {
         return { valid: false, error: 'Motor policy must start with "P"' }
       }
-      if (slashCount < 3 || slashCount > 4) {
-        return { valid: false, error: 'Motor policy must have 3-4 slashes (/)' }
+      if (slashCount < 3 || slashCount > 5) {
+        return { valid: false, error: 'Motor policy must have 3-5 slashes (/)' }
       }
       if (!hasHyphen) {
         return { valid: false, error: 'Motor policy must contain a hyphen (-)' }
@@ -288,7 +288,7 @@ const QuickQRGenerator = () => {
               )}
               {watchedLOB === 'motor' && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Format: P/YYYY/XXX-X/XXX (3-4 slashes + hyphen required)
+                  Format: P/YYYY/XXX-X/XXX (3-5 slashes + hyphen required)
                 </p>
               )}
               {watchedLOB === 'life' && (

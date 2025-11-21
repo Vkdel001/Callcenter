@@ -23,15 +23,16 @@ The Quick QR Generator now includes **strict policy number validation** to ensur
 ### **Motor Insurance**
 **Requirements:**
 - ✅ Must start with **"P"** (case-insensitive)
-- ✅ Must contain **3-4 slashes** (/)
+- ✅ Must contain **3-5 slashes** (/)
 - ✅ Must contain at least **one hyphen** (-)
 - ✅ Example: `P/2024/001-M/123` (3 slashes + hyphen)
 - ✅ Example: `P/2024/001-M/123/456` (4 slashes + hyphen)
+- ✅ Example: `P/2024/001-M/123/456/789` (5 slashes + hyphen)
 
 **Invalid Examples:**
 - ❌ `M/2024/001-M` - Doesn't start with P
 - ❌ `P/2024/001` - No hyphen
-- ❌ `P/2024` - Only 1 slash (needs 3-4)
+- ❌ `P/2024` - Only 1 slash (needs 3-5)
 - ❌ `P-2024-001-M` - Uses hyphens instead of slashes
 
 ### **Life Insurance**
@@ -76,7 +77,7 @@ Before generating a QR code, users must:
 ⚠️ Health policy must start with "MED"
 ⚠️ Health policy must have 4-5 slashes (/)
 ⚠️ Motor policy must start with "P"
-⚠️ Motor policy must have 3-4 slashes (/)
+⚠️ Motor policy must have 3-5 slashes (/)
 ⚠️ Motor policy must contain a hyphen (-)
 ```
 
@@ -89,7 +90,7 @@ Format: MED/YYYY/XXX/XX/XXXX (4-5 slashes)
 
 **Motor Insurance:**
 ```
-Format: P/YYYY/XXX-X/XXX (3-4 slashes + hyphen required)
+Format: P/YYYY/XXX-X/XXX (3-5 slashes + hyphen required)
 ```
 
 **Life Insurance:**
@@ -258,8 +259,8 @@ const validatePolicyNumber = (policyNumber, lob) => {
     if (!policyNumber.toUpperCase().startsWith('P')) {
       return { valid: false, error: 'Motor policy must start with "P"' }
     }
-    if (slashCount < 3 || slashCount > 4) {
-      return { valid: false, error: 'Motor policy must have 3-4 slashes (/)' }
+    if (slashCount < 3 || slashCount > 5) {
+      return { valid: false, error: 'Motor policy must have 3-5 slashes (/)' }
     }
     if (!hasHyphen) {
       return { valid: false, error: 'Motor policy must contain a hyphen (-)' }
@@ -345,7 +346,7 @@ const handleConfirmGeneration = () => {
 ### **For Motor Insurance QR:**
 1. Select "Motor Insurance" from dropdown
 2. Enter policy starting with "P"
-3. Ensure 3-4 slashes AND one hyphen
+3. Ensure 3-5 slashes AND one hyphen
 4. Example: `P/2024/001-M/123`
 5. Watch for ✅ validation message
 6. Click Generate, type "motor" to confirm

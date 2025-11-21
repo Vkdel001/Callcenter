@@ -1,11 +1,17 @@
 class QRService {
   constructor() {
     this.zwennPayApiUrl = 'https://api.zwennpay.com:9425/api/v1.0/Common/GetMerchantQR'
-    // LOB-specific merchant codes
+    // LOB-specific merchant codes (for database customers with callback)
     this.merchantCodes = {
       life: import.meta.env.VITE_ZWENNPAY_MERCHANT_LIFE || '56',
       health: import.meta.env.VITE_ZWENNPAY_MERCHANT_HEALTH || '153',
       motor: import.meta.env.VITE_ZWENNPAY_MERCHANT_MOTOR || '155'
+    }
+    // Ad-hoc merchant codes (for Quick QR Generator - no callback)
+    this.adHocMerchantCodes = {
+      life: '151',
+      health: '153',
+      motor: '155'
     }
     // Fallback to old single merchant ID if new ones not configured
     this.defaultMerchantId = import.meta.env.VITE_ZWENNPAY_MERCHANT_ID || '56'
@@ -136,6 +142,12 @@ class QRService {
   }
 
   async generatePaymentQR(customerData) {
+    // Check if this is an ad-hoc QR (no customer ID) from Quick QR Generator
+    if (!customerData.id && customerData.lineOfBusiness) {
+      console.log('🔷 Ad-hoc QR generation (Quick QR Generator)')
+      return this.generateAdHocQR(customerData)
+    }
+
     // If in test mode, use mock data
     if (this.testMode) {
       return this.generateTestQR(customerData)
@@ -309,6 +321,181 @@ class QRService {
       }
     } catch (error) {
       console.error('Test QR generation failed:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Generate ad-hoc QR code for Quick QR Generator (no customer ID, no callback)
+   * Uses manual LOB selection and ad-hoc merchant codes
+   * 
+   * @param {Object} customerData - Customer data from Quick QR form
+   * @param {string} customerData.lineOfBusiness - Manually selected LOB (life/health/motor)
+   * @param {string} customerData.name - Customer name
+   * @param {string} customerData.policyNumber - Policy number
+   * @param {number} customerData.amountDue - Amount due
+   * @param {string} customerData.mobile - Mobile number
+   * @returns {Object} QR generation result
+   */
+  async generateAdHocQR(customerData) {
+    try {
+      console.log('🔷 Generating ad-hoc QR (Quick QR Generator - No Callback)')
+      
+      // Validate LOB is provided
+      if (!customerData.lineOfBusiness) {
+        throw new Error('❌ Line of Business (LOB) is required for ad-hoc QR generation')
+      }
+      
+      const lineOfBusiness = customerData.lineOfBusiness.toLowerCase().trim()
+      
+      // Validate LOB is valid
+      const validLOBs = ['life', 'health', 'motor']
+      if (!validLOBs.includes(lineOfBusiness)) {
+        throw new Error(`❌ Invalid Line of Business: "${customerData.lineOfBusiness}". Must be one of: life, health, motor`)
+      }
+      
+      // Get ad-hoc merchant ID (151, 153, 155)
+      const merchantId = this.adHocMerchantCodes[lineOfBusiness]
+      
+      if (!merchantId) {
+        throw new Error(`❌ Ad-hoc merchant code not configured for LOB: ${lineOfBusiness}`)
+      }
+      
+      console.log(`🏦 Ad-hoc Merchant ID selected: ${merchantId} for LOB: ${lineOfBusiness}`)
+      console.log(`📝 Note: This is for Quick QR Generator (no callback integration)`)
+      
+      // Sanitize policy number for QR code compatibility
+      const sanitizedPolicyNumber = this.sanitizePolicyNumber(customerData.policyNumber)
+      
+      // Format customer name to fit 24-character limit
+      const formattedCustomerName = this.formatCustomerNameForQR(customerData.name)
+
+      const payload = {
+        "MerchantId": parseInt(merchantId),
+        "SetTransactionAmount": true,
+        "TransactionAmount": customerData.amountDue.toString(),
+        "SetConvenienceIndicatorTip": false,
+        "ConvenienceIndicatorTip": 0,
+        "SetConvenienceFeeFixed": false,
+        "ConvenienceFeeFixed": 0,
+        "SetConvenienceFeePercentage": false,
+        "ConvenienceFeePercentage": 0,
+        "SetAdditionalBillNumber": true,
+        "AdditionalRequiredBillNumber": false,
+        "AdditionalBillNumber": sanitizedPolicyNumber,
+        "SetAdditionalMobileNo": true,
+        "AdditionalRequiredMobileNo": false,
+        "AdditionalMobileNo": customerData.mobile.replace(/[^\d]/g, ''),
+        "SetAdditionalStoreLabel": false,
+        "AdditionalRequiredStoreLabel": false,
+        "AdditionalStoreLabel": "",
+        "SetAdditionalLoyaltyNumber": false,
+        "AdditionalRequiredLoyaltyNumber": false,
+        "AdditionalLoyaltyNumber": "",
+        "SetAdditionalReferenceLabel": false,
+        "AdditionalRequiredReferenceLabel": false,
+        "AdditionalReferenceLabel": "",
+        "SetAdditionalCustomerLabel": true,
+        "AdditionalRequiredCustomerLabel": false,
+        "AdditionalCustomerLabel": formattedCustomerName,
+        "SetAdditionalTerminalLabel": false,
+        "AdditionalRequiredTerminalLabel": false,
+        "AdditionalTerminalLabel": "",
+        "SetAdditionalPurposeTransaction": true,
+        "AdditionalRequiredPurposeTransaction": false,
+        "AdditionalPurposeTransaction": "NIC Life"
+      }
+
+      console.log('Generating ad-hoc QR with payload:', payload)
+
+      const response = await fetch(this.zwennPayApiUrl, {
+        method: 'POST',
+        headers: {
+          'accept': 'text/plain',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`ZwennPay API Error: ${response.status} - ${errorText}`)
+      }
+
+      const qrData = (await response.text()).trim()
+
+      if (!qrData || qrData.toLowerCase() === 'null' || qrData.toLowerCase() === 'none') {
+        throw new Error('No valid QR data received from ZwennPay')
+      }
+
+      // Generate branded QR code image
+      const qrCodeUrl = await this.createBrandedQRCode(qrData, customerData)
+
+      return {
+        success: true,
+        qrData,
+        qrCodeUrl,
+        paymentLink: `https://zwennpay.com/pay?data=${encodeURIComponent(qrData)}`,
+        merchantId: merchantId,
+        transactionAmount: customerData.amountDue,
+        lineOfBusiness: lineOfBusiness,
+        adHocMode: true
+      }
+
+    } catch (error) {
+      console.error('Ad-hoc QR Generation failed:', error)
+      
+      // If it's a CORS or network error, fall back to test mode
+      if (error.message.includes('fetch') || error.message.includes('CORS') || error.message.includes('network')) {
+        console.log('Network/CORS error detected, falling back to test QR generation')
+        return this.generateAdHocTestQR(customerData)
+      }
+      
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Generate test ad-hoc QR (fallback for network errors)
+   */
+  async generateAdHocTestQR(customerData) {
+    try {
+      const lineOfBusiness = customerData.lineOfBusiness.toLowerCase().trim()
+      const merchantId = this.adHocMerchantCodes[lineOfBusiness]
+      
+      console.log(`📋 [TEST MODE - AD-HOC] Generating test QR for LOB: ${lineOfBusiness}`)
+      console.log(`🏦 [TEST MODE - AD-HOC] Merchant ID: ${merchantId}`)
+      
+      // Sanitize policy number for test QR
+      const sanitizedPolicyNumber = this.sanitizePolicyNumber(customerData.policyNumber)
+      
+      // Format customer name to fit 24-character limit
+      const formattedCustomerName = this.formatCustomerNameForQR(customerData.name)
+      
+      // Simulate ZwennPay QR data format
+      const testQrData = `00020101021226580014com.zwennpay.qr01${merchantId.toString().padStart(2, '0')}${sanitizedPolicyNumber}0208${customerData.amountDue.toString()}5204000053034805802MU5925NIC Life Insurance Maurit6009Port Louis620705036304`
+      
+      const qrCodeUrl = await this.createBrandedQRCode(testQrData, customerData)
+      
+      return {
+        success: true,
+        qrData: testQrData,
+        qrCodeUrl,
+        paymentLink: `https://zwennpay.com/pay?merchant=${merchantId}&amount=${customerData.amountDue}&ref=${sanitizedPolicyNumber}`,
+        merchantId: merchantId,
+        transactionAmount: customerData.amountDue,
+        lineOfBusiness: lineOfBusiness,
+        adHocMode: true,
+        testMode: true
+      }
+    } catch (error) {
+      console.error('Test ad-hoc QR generation failed:', error)
       return {
         success: false,
         error: error.message

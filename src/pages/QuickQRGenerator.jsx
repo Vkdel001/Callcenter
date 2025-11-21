@@ -69,7 +69,8 @@ const QuickQRGenerator = () => {
       mobile: data.mobile,
       email: data.email || '',
       nid: data.nid || '',
-      amountDue: parseFloat(data.amountDue)
+      amountDue: parseFloat(data.amountDue),
+      lineOfBusiness: data.lineOfBusiness // Add LOB for ad-hoc QR generation
     }
 
     generateQRMutation.mutate(customerData)
@@ -139,6 +140,29 @@ const QuickQRGenerator = () => {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Line of Business */}
+            <div>
+              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                <CreditCard className="h-4 w-4 mr-1" />
+                Line of Business *
+              </label>
+              <select
+                {...register('lineOfBusiness', { required: 'Line of Business is required' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">Select LOB</option>
+                <option value="life">Life Insurance</option>
+                <option value="health">Health Insurance</option>
+                <option value="motor">Motor Insurance</option>
+              </select>
+              {errors.lineOfBusiness && (
+                <p className="mt-1 text-sm text-red-600">{errors.lineOfBusiness.message}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Merchant IDs: Life=151, Health=153, Motor=155
+              </p>
+            </div>
+
             {/* Customer Name */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-2">

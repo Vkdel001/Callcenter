@@ -8,8 +8,15 @@ import { formatCurrency } from '../utils/currency'
 const QuickQRGenerator = () => {
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrData, setQrData] = useState(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [pendingFormData, setPendingFormData] = useState(null)
+  const [confirmationInput, setConfirmationInput] = useState('')
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm()
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm()
+  
+  // Watch form fields for validation
+  const watchedLOB = watch('lineOfBusiness')
+  const watchedPolicyNumber = watch('policyNumber')
 
   const generateQRMutation = useMutation(
     (customerData) => customerService.generateQRCode(customerData),
@@ -62,17 +69,87 @@ const QuickQRGenerator = () => {
     }
   )
 
+  // Validate policy number based on LOB
+  const validatePolicyNumber = (policyNumber, lob) => {
+    if (!policyNumber || !lob) return { valid: false, error: 'Policy number and LOB are required' }
+    
+    const slashCount = (policyNumber.match(/\//g) || []).length
+    const hasHyphen = policyNumber.includes('-')
+    
+    if (lob === 'health') {
+      // Health: Must start with MED, 4-5 slashes
+      if (!policyNumber.toUpperCase().startsWith('MED')) {
+        return { valid: false, error: 'Health policy must start with "MED"' }
+      }
+      if (slashCount < 4 || slashCount > 5) {
+        return { valid: false, error: 'Health policy must have 4-5 slashes (/)' }
+      }
+      return { valid: true }
+    }
+    
+    if (lob === 'motor') {
+      // Motor: Must start with P, 3-4 slashes, must have hyphen
+      if (!policyNumber.toUpperCase().startsWith('P')) {
+        return { valid: false, error: 'Motor policy must start with "P"' }
+      }
+      if (slashCount < 3 || slashCount > 4) {
+        return { valid: false, error: 'Motor policy must have 3-4 slashes (/)' }
+      }
+      if (!hasHyphen) {
+        return { valid: false, error: 'Motor policy must contain a hyphen (-)' }
+      }
+      return { valid: true }
+    }
+    
+    // Life: No specific validation
+    return { valid: true }
+  }
+
+  // Check if form is valid for submission
+  const isPolicyValid = () => {
+    if (!watchedLOB || !watchedPolicyNumber) return false
+    const validation = validatePolicyNumber(watchedPolicyNumber, watchedLOB)
+    return validation.valid
+  }
+
   const onSubmit = (data) => {
-    const customerData = {
-      name: data.name,
-      policyNumber: data.policyNumber,
-      mobile: data.mobile,
-      email: data.email || '',
-      nid: data.nid || '',
-      amountDue: parseFloat(data.amountDue),
-      lineOfBusiness: data.lineOfBusiness // Add LOB for ad-hoc QR generation
+    // Validate policy number
+    const validation = validatePolicyNumber(data.policyNumber, data.lineOfBusiness)
+    if (!validation.valid) {
+      alert(`❌ Invalid Policy Number: ${validation.error}`)
+      return
     }
 
+    // Store form data and show confirmation dialog
+    setPendingFormData(data)
+    setConfirmationInput('')
+    setShowConfirmDialog(true)
+  }
+
+  const handleConfirmGeneration = () => {
+    if (!pendingFormData) return
+    
+    // Check if confirmation matches LOB
+    const expectedConfirmation = pendingFormData.lineOfBusiness.toLowerCase()
+    const userInput = confirmationInput.toLowerCase().trim()
+    
+    if (userInput !== expectedConfirmation) {
+      alert(`❌ Please type "${expectedConfirmation}" to confirm`)
+      return
+    }
+
+    // Proceed with QR generation
+    const customerData = {
+      name: pendingFormData.name,
+      policyNumber: pendingFormData.policyNumber,
+      mobile: pendingFormData.mobile,
+      email: pendingFormData.email || '',
+      nid: pendingFormData.nid || '',
+      amountDue: parseFloat(pendingFormData.amountDue),
+      lineOfBusiness: pendingFormData.lineOfBusiness
+    }
+
+    setShowConfirmDialog(false)
     generateQRMutation.mutate(customerData)
   }
 
@@ -195,6 +272,30 @@ const QuickQRGenerator = () => {
               {errors.policyNumber && (
                 <p className="mt-1 text-sm text-red-600">{errors.policyNumber.message}</p>
               )}
+              {/* Real-time validation feedback */}
+              {watchedLOB && watchedPolicyNumber && (() => {
+                const validation = validatePolicyNumber(watchedPolicyNumber, watchedLOB)
+                if (!validation.valid) {
+                  return <p className="mt-1 text-sm text-red-600">⚠️ {validation.error}</p>
+                }
+                return <p className="mt-1 text-sm text-green-600">✅ Policy number format is valid</p>
+              })()}
+              {/* Format hints based on LOB */}
+              {watchedLOB === 'health' && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Format: MED/YYYY/XXX/XX/XXXX (4-5 slashes)
+                </p>
+              )}
+              {watchedLOB === 'motor' && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Format: P/YYYY/XXX-X/XXX (3-4 slashes + hyphen required)
+                </p>
+              )}
+              {watchedLOB === 'life' && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Format: Flexible (any format accepted)
+                </p>
+              )}
             </div>
 
             {/* Mobile Number */}
@@ -285,15 +386,95 @@ const QuickQRGenerator = () => {
           <div className="flex justify-center pt-4">
             <button
               type="submit"
-              disabled={generateQRMutation.isLoading}
+              disabled={generateQRMutation.isLoading || !isPolicyValid()}
               className="flex items-center px-8 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               <QrCode className="h-5 w-5 mr-2" />
               {generateQRMutation.isLoading ? 'Generating...' : 'Generate Payment QR'}
             </button>
+            {!isPolicyValid() && watchedLOB && watchedPolicyNumber && (
+              <p className="ml-4 text-sm text-red-600 self-center">
+                ⚠️ Please fix policy number format
+              </p>
+            )}
           </div>
         </form>
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && pendingFormData && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Confirm QR Generation</h3>
+              <button
+                onClick={() => setShowConfirmDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Double Confirmation Required</strong>
+                    </p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      You are about to generate a QR code for <strong>{pendingFormData.lineOfBusiness.toUpperCase()}</strong> insurance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm text-gray-600 mb-4">
+                <p><strong>Customer:</strong> {pendingFormData.name}</p>
+                <p><strong>Policy:</strong> {pendingFormData.policyNumber}</p>
+                <p><strong>Amount:</strong> MUR {parseFloat(pendingFormData.amountDue).toLocaleString()}</p>
+                <p><strong>LOB:</strong> {pendingFormData.lineOfBusiness.toUpperCase()} Insurance</p>
+                <p><strong>Merchant ID:</strong> {pendingFormData.lineOfBusiness === 'life' ? '151' : pendingFormData.lineOfBusiness === 'health' ? '153' : '155'}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type "<strong>{pendingFormData.lineOfBusiness}</strong>" to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={confirmationInput}
+                  onChange={(e) => setConfirmationInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                  placeholder={`Type "${pendingFormData.lineOfBusiness}" here`}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setShowConfirmDialog(false)}
+                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmGeneration}
+                disabled={confirmationInput.toLowerCase().trim() !== pendingFormData.lineOfBusiness.toLowerCase()}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirm & Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Modal */}
       {showQRModal && qrData && (

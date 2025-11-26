@@ -13,6 +13,12 @@ const Sidebar = () => {
     // Sales agents only need Dashboard (LOB system)
   ]
 
+  const csrNavItems = [
+    { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+    // CSRs use LOB Dashboard for customer access (no separate Customers link)
+  ]
+
   const callCenterAgentNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/customers', icon: Users, label: 'Customers' },
@@ -33,6 +39,7 @@ const Sidebar = () => {
   const getNavItems = () => {
     if (user?.role === 'admin') return adminNavItems
     if (user?.agent_type === 'sales_agent') return salesAgentNavItems
+    if (user?.agent_type === 'csr') return csrNavItems
     return callCenterAgentNavItems // Default for call_center and internal agents
   }
 

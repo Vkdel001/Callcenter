@@ -434,7 +434,10 @@ const LOBDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center">
-                        <h3 className="text-lg font-medium text-gray-900">
+                        <h3 
+                          className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer underline"
+                          onClick={() => navigate(`/customers/${customer.id}`)}
+                        >
                           {customer.titleOwner1 ? `${customer.titleOwner1} ` : ''}{customer.name}
                         </h3>
                         <span className={`ml-3 inline-flex px-2 py-1 text-xs font-medium rounded-full ${customer.status === 'pending'

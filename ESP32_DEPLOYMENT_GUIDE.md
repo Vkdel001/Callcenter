@@ -3,8 +3,25 @@
 **Project**: NIC Life Insurance Call Center System  
 **Feature**: ESP32 QR Code Display Integration  
 **Deployment Type**: VPS Backend + Local Windows Clients  
+**Version**: 1.1 (with Auto-Linking)  
 **Date**: November 27, 2024  
 **Status**: Ready for Production Deployment
+
+---
+
+## 🆕 Version 1.1 Updates
+
+**Latest Improvements:**
+- ✅ **Smart Auto-Linking**: Automatically finds and links to online devices
+- ✅ **3-Tier Linking Strategy**: Multiple fallback methods for robust linking
+- ✅ **Persistent Device ID**: Stores device_id for faster future connections
+- ✅ **Enhanced Logging**: Clear console messages for easy troubleshooting
+- ✅ **Better Error Handling**: Visible error messages instead of silent failures
+
+**What This Means:**
+- Device linking is now more reliable and works even with computer name mismatches
+- Agents will have a smoother experience with automatic device detection
+- Troubleshooting is easier with detailed console logging
 
 ---
 
@@ -666,6 +683,45 @@ curl -X POST https://your-domain.com/api/device/register \
 7. Agent logs out
    ✓ Device remains ready for next agent
 ```
+
+---
+
+## �  Recent Improvements (v1.1)
+
+### Auto-Linking Feature
+
+**What Changed:**
+The device linking system now includes a **3-tier smart linking strategy** that automatically handles computer name mismatches:
+
+**Linking Strategy:**
+1. **Tier 1**: Find by exact `device_id` (fastest - uses stored ID from previous session)
+2. **Tier 2**: Find by `computer_name` (fallback for exact name match)
+3. **Tier 3**: **Auto-link to most recent online device** (smart fallback - NEW!)
+
+**Benefits:**
+- ✅ Works even if computer names don't match between browser and Windows client
+- ✅ Automatically links to any online device that isn't already assigned
+- ✅ Stores device_id for faster linking in future sessions
+- ✅ Better error messages and logging for troubleshooting
+
+**Console Logging:**
+When you login, you'll now see clear messages in browser console:
+```
+🔗 Attempting to link device for agent: 24 John Doe
+✅ Device linked successfully: device_DESKTOP-RSJ243K_4CD717
+```
+
+Or if there's an issue:
+```
+⚠️ Device linking failed: No online device available
+```
+
+**Troubleshooting:**
+If device linking fails:
+1. Check Windows client is running (green system tray icon)
+2. Check browser console for detailed error messages
+3. Verify device is registered: `curl https://your-domain.com/api/device/list`
+4. Try logging out and back in (device_id is now stored)
 
 ---
 

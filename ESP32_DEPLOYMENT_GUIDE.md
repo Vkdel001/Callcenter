@@ -3,15 +3,16 @@
 **Project**: NIC Life Insurance Call Center System  
 **Feature**: ESP32 QR Code Display Integration  
 **Deployment Type**: VPS Backend + Local Windows Clients  
-**Version**: 1.1 (with Auto-Linking)  
+**Version**: 1.2 (Production Ready)  
 **Date**: November 27, 2024  
-**Status**: Ready for Production Deployment
+**Status**: ✅ Ready for Production Deployment
 
 ---
 
-## 🆕 Version 1.1 Updates
+## 🆕 Version 1.2 Updates (Latest)
 
-**Latest Improvements:**
+**Critical Production Features:**
+- ✅ **Agent Shift Change Support**: Automatic device re-linking when agents change
 - ✅ **Smart Auto-Linking**: Automatically finds and links to online devices
 - ✅ **3-Tier Linking Strategy**: Multiple fallback methods for robust linking
 - ✅ **Persistent Device ID**: Stores device_id for faster future connections
@@ -19,9 +20,11 @@
 - ✅ **Better Error Handling**: Visible error messages instead of silent failures
 
 **What This Means:**
-- Device linking is now more reliable and works even with computer name mismatches
-- Agents will have a smoother experience with automatic device detection
-- Troubleshooting is easier with detailed console logging
+- ✅ **No restarts needed** for agent shift changes throughout the day
+- ✅ Device linking works even with computer name mismatches
+- ✅ Multiple agents can use same device seamlessly
+- ✅ Troubleshooting is easier with detailed console logging
+- ✅ Production-tested with edge cases verified
 
 ---
 
@@ -839,6 +842,37 @@ curl https://your-domain.com/api/device/list \
 # }
 ```
 
+### Agent Shift Changes (NEW in v1.1)
+
+**How It Works:**
+The system automatically handles agent transitions without any restarts!
+
+**Shift Change Process:**
+```
+1. Previous agent logs out from web portal
+2. New agent logs in with their credentials  
+3. Device automatically re-links to new agent
+4. New agent can immediately generate QR codes
+```
+
+**Important Notes:**
+- ✅ **NO need to restart Windows EXE** - Keep it running all day
+- ✅ **NO need to restart backend service** - Runs continuously  
+- ✅ **Device stays connected** - ESP32 remains plugged in
+- ✅ **Automatic re-linking** - System detects and handles shift changes
+
+**What You'll See:**
+Browser console shows:
+```
+🔗 Attempting to link device for agent: 26 Agent Name
+✅ Device linked successfully: device_DESKTOP-RSJ243K_4CD717
+```
+
+Backend logs show:
+```
+Re-linking device from previous agent (shift change)
+```
+
 ### Agent Support
 
 **Common Issues:**
@@ -849,6 +883,7 @@ curl https://your-domain.com/api/device/list \
 | Red icon in tray | Check internet connection |
 | QR not displaying on device | Restart Windows client |
 | Device not linking | Check agent logged in correctly |
+| "No device linked" after shift change | Refresh browser (Ctrl+F5) and try again |
 
 **Support Checklist:**
 ```
@@ -856,8 +891,9 @@ curl https://your-domain.com/api/device/list \
 2. Verify Windows client running (green icon)
 3. Verify agent logged into web portal
 4. Check device_client.log for errors
-5. Restart Windows client if needed
-6. Contact IT if issue persists
+5. For shift changes: Just logout/login (no restart needed!)
+6. Restart Windows client only if device is unresponsive
+7. Contact IT if issue persists
 ```
 
 ---

@@ -337,24 +337,34 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
         .find(d => d.computer_name === computer_name);
     }
     
-    // Strategy 3: Find most recently seen online device without an agent
-    // This handles the case where computer_name doesn't match
+    // Strategy 3: Find most recently seen online device (with or without agent)
+    // This handles agent shift changes and computer_name mismatches
     if (!device) {
       const onlineDevices = Object.values(registry.devices)
         .filter(d => {
           const lastSeen = new Date(d.last_seen).getTime();
           const now = Date.now();
           const secondsSinceLastSeen = (now - lastSeen) / 1000;
-          return secondsSinceLastSeen < 30 && !d.agent_id; // Online and not linked
+          return secondsSinceLastSeen < 30; // Just needs to be online
         })
         .sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
       
       if (onlineDevices.length > 0) {
         device = onlineDevices[0];
-        log('info', 'Auto-linking to most recent online device', { 
-          device_id: device.device_id,
-          agent_id 
-        });
+        const previousAgent = device.agent_id;
+        
+        if (previousAgent && previousAgent !== parseInt(agent_id)) {
+          log('info', 'Re-linking device from previous agent (shift change)', { 
+            device_id: device.device_id,
+            previous_agent: previousAgent,
+            new_agent: agent_id 
+          });
+        } else {
+          log('info', 'Auto-linking to most recent online device', { 
+            device_id: device.device_id,
+            agent_id 
+          });
+        }
       }
     }
 

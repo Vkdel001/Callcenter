@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Real QR Code</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        #qr-preview {
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Real QR Code Display</h1>
+    <p>This generates a proper QR code and sends it to the device</p>
+
+    <div class="section">
+        <h2>1. Generate QR Code</h2>
+        <label>Payment Data: <input type="text" id="payment-data" value="PAYMENT:LIFE/2024/001:1500:John Doe" style="width: 400px;"></label><br><br>
+        <button onclick="generateQR()">Generate QR Code</button>
+        <div id="qr-preview"></div>
+        <div id="qr-result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Send to Device</h2>
+        <label>Agent ID: <input type="number" id="agent-id" value="1"></label><br><br>
+        <label>Customer Name: <input type="text" id="customer-name" value="John Doe"></label><br><br>
+        <button onclick="sendToDevice()" id="send-btn" disabled>Send to Device</button>
+        <div id="send-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5001';
+        const API_KEY = 'NIC-DEVICE-API-KEY-2024-CHANGE-ME';
+        let qrDataURL = null;
+
+        function generateQR() {
+            const resultDiv = document.getElementById('qr-result');
+            const previewDiv = document.getElementById('qr-preview');
+            const paymentData = document.getElementById('payment-data').value;
+            
+            resultDiv.innerHTML = 'Generating QR code...';
+            previewDiv.innerHTML = '<div id="qrcode"></div>';
+
+            try {
+                // Generate QR code
+                const qrcode = new QRCode(document.getElementById("qrcode"), {
+                    text: paymentData,
+                    width: 320,
+                    height: 320,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+
+                // Wait a bit for QR to render, then get as data URL
+                setTimeout(() => {
+                    const canvas = document.querySelector('#qrcode canvas');
+                    if (canvas) {
+                        qrDataURL = canvas.toDataURL('image/png');
+                        resultDiv.innerHTML = `<span class="success">✓ QR code generated</span>\nSize: 320x320\nFormat: PNG (base64)`;
+                        document.getElementById('send-btn').disabled = false;
+                    } else {
+                        resultDiv.innerHTML = `<span class="error">✗ Canvas not found</span>`;
+                    }
+                }, 500);
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ Generation failed</span>\n${error.message}`;
+            }
+        }
+
+        async function sendToDevice() {
+            if (!qrDataURL) {
+                alert('Please generate QR code first');
+                return;
+            }
+
+            const resultDiv = document.getElementById('send-result');
+            const agentId = document.getElementById('agent-id').value;
+            const customerName = document.getElementById('customer-name').value;
+            
+            resultDiv.innerHTML = 'Sending to device...';
+
+            try {
+                const response = await fetch(`${API_URL}/api/device/qr`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({
+                        agent_id: parseInt(agentId),
+                        qr_image: qrDataURL,
+                        customer_name: customerName,
+                        policy_number: 'LIFE/2024/001',
+                        amount: 1500
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `<span class="success">✓ QR sent successfully!</span>\n${JSON.stringify(data, null, 2)}\n\n<strong>Check device client terminal for execution.</strong>\n\nThe QR should appear on your ESP32 device in a few seconds.`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">✗ Failed to send</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ Error</span>\n${error.message}`;
+            }
+        }
+
+        // Auto-generate on load
+        window.onload = () => {
+            generateQR();
+        };
+    </script>
+</body>
+</html>

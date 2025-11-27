@@ -1,0 +1,22 @@
+{
+  "devices": {
+    "device_DESKTOP-RSJ243K_4CD717": {
+      "device_id": "device_DESKTOP-RSJ243K_4CD717",
+      "computer_name": "DESKTOP-RSJ243K",
+      "com_port": "COM3",
+      "status": "online",
+      "registered_at": "2025-11-27T05:08:25.569Z",
+      "last_seen": "2025-11-27T08:11:34.940Z",
+      "qr_count_today": 55,
+      "qr_count_total": 55,
+      "agent_id": 24,
+      "agent_name": "Flacq Agent",
+      "last_qr_at": "2025-11-27T08:00:36.646Z"
+    }
+  },
+  "stats": {
+    "total_devices": 1,
+    "online_devices": 1,
+    "total_qr_today": 55
+  }
+}

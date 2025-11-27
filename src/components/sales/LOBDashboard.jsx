@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { customerService } from '../../services/customerService'
+import { deviceService } from '../../services/deviceService'
 import { useAuth } from '../../contexts/AuthContext'
 
 const LOBDashboard = () => {
@@ -181,6 +182,26 @@ const LOBDashboard = () => {
         setShowQRModal(true)
 
         console.log('Modal state set with protection')
+        
+        // NEW: Also try to send to ESP32 device (parallel, non-blocking)
+        try {
+          const deviceAvailable = await deviceService.isAvailable()
+          if (deviceAvailable) {
+            console.log('📱 Device available, sending QR to device...')
+            const deviceResult = await deviceService.displayQR(qrResult.qrCodeUrl, customer)
+            
+            if (deviceResult.success) {
+              console.log('✅ QR displayed on device successfully')
+            } else {
+              console.log('⚠️ Device display failed:', deviceResult.error)
+            }
+          } else {
+            console.log('📱 Device offline, using screen QR only')
+          }
+        } catch (deviceError) {
+          // Device error should not break the main flow
+          console.error('Device service error:', deviceError)
+        }
       } else {
         alert('❌ Failed to generate QR code')
       }

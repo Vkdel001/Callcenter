@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
+import { deviceService } from '../../services/deviceService'
 import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText, Bell, RefreshCw } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { useAuth } from '../../contexts/AuthContext'
@@ -114,12 +115,45 @@ const CustomerDetail = () => {
   const generateQRMutation = useMutation(
     () => customerService.generateQRCode(customer),
     {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         if (data.success === false) {
           alert(`❌ QR Generation Failed: ${data.error}`)
         } else {
+          // Show QR on screen (existing functionality)
           setQrData(data)
           setShowQRModal(true)
+          
+          // NEW: Also try to send to ESP32 device (parallel, non-blocking)
+          try {
+            console.log('📱 Attempting to send QR to device...')
+            console.log('QR URL:', data.qrCodeUrl)
+            
+            // Convert image URL to data URI (base64)
+            const response = await fetch(data.qrCodeUrl)
+            const blob = await response.blob()
+            const reader = new FileReader()
+            
+            reader.onloadend = async () => {
+              const dataUri = reader.result
+              console.log('📱 Converted to data URI, sending to device...')
+              
+              const deviceResult = await deviceService.displayQR(dataUri, customer)
+              
+              if (deviceResult.success) {
+                console.log('✅ QR queued for device successfully')
+                console.log('Command ID:', deviceResult.command_id)
+                // Optional: Show a subtle notification
+                // You could add a toast notification here if you have one
+              } else {
+                console.log('⚠️ Device display failed:', deviceResult.error)
+              }
+            }
+            
+            reader.readAsDataURL(blob)
+          } catch (deviceError) {
+            // Device error should not break the main flow
+            console.error('Device service error:', deviceError)
+          }
         }
       },
       onError: (error) => {
@@ -862,7 +896,21 @@ const CustomerDetail = () => {
 
               <div className="mt-4">
                 <button
-                  onClick={() => setShowQRModal(false)}
+                  onClick={async () => {
+                    setShowQRModal(false);
+                    // Restart rotation on ESP32 device
+                    try {
+                      await deviceService.paymentComplete();
+                      console.log('✓ Rotation restart requested');
+                    } catch (error) {
+                      console.error('Rotation restart error:', error);
+                    }
+                    // Restart device rotation after payment
+                    if (await deviceService.isAvailable()) {
+                      await deviceService.paymentComplete();
+                      console.log('✅ Device rotation restarted');
+                    }
+                  }}
                   className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
                 >
                   Close

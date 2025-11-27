@@ -1,0 +1,18 @@
+# NIC Device Client - Python Dependencies
+# Compatible with Python 3.7+
+
+# Serial communication with ESP32
+pyserial==3.5
+
+# Image processing (Python 3.7 compatible)
+Pillow==9.5.0
+
+# HTTP requests to VPS
+requests==2.31.0
+
+# System tray icon (Windows) - Python 3.7 compatible
+pystray==0.19.4
+
+# Additional dependencies for pystray on Windows
+# These are usually installed automatically, but listed for completeness
+# Pillow is already listed above

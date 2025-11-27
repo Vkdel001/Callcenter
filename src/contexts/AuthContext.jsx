@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authService } from '../services/authService'
+import { deviceService } from '../services/deviceService'
 
 const AuthContext = createContext()
 
@@ -39,6 +40,14 @@ export const AuthProvider = ({ children }) => {
       if (userData && token) {
         setUser(userData)
         localStorage.setItem('auth_token', token)
+        localStorage.setItem('user', JSON.stringify(userData))
+        
+        // Link device to agent (non-blocking)
+        const agentId = userData.id || userData.email
+        deviceService.linkDevice(agentId, userData.name).catch(err => {
+          console.warn('Device linking failed (non-critical):', err)
+        })
+        
         return { user: userData, token }
       }
       
@@ -53,6 +62,14 @@ export const AuthProvider = ({ children }) => {
       // Normal login without OTP
       setUser(response.user)
       localStorage.setItem('auth_token', response.token)
+      localStorage.setItem('user', JSON.stringify(response.user))
+      
+      // Link device to agent (non-blocking)
+      const agentId = response.user.id || response.user.email
+      deviceService.linkDevice(agentId, response.user.name).catch(err => {
+        console.warn('Device linking failed (non-critical):', err)
+      })
+      
       return response
     } catch (error) {
       throw error

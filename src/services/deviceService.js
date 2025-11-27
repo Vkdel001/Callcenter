@@ -189,10 +189,18 @@ class DeviceService {
       // Get computer name from browser (best effort)
       const computerName = this.getComputerName();
       
+      // Check if we have a previously linked device_id
+      const previousDeviceId = localStorage.getItem('linked_device_id');
+      
       // Use email as agent_id if it's a string (email format)
       const effectiveAgentId = (typeof agentId === 'string' && agentId.includes('@')) ? agentId : agentId;
 
-      console.log('Linking device to agent:', { agentId: effectiveAgentId, agentName, computerName });
+      console.log('Linking device to agent:', { 
+        agentId: effectiveAgentId, 
+        agentName, 
+        computerName,
+        previousDeviceId 
+      });
 
       const response = await fetch(`${this.serviceUrl}/api/device/link`, {
         method: 'POST',
@@ -203,7 +211,8 @@ class DeviceService {
         body: JSON.stringify({
           agent_id: effectiveAgentId,
           agent_name: agentName,
-          computer_name: computerName
+          computer_name: computerName,
+          device_id: previousDeviceId // Include previous device_id if available
         })
       });
 
@@ -211,13 +220,13 @@ class DeviceService {
 
       if (response.ok && data.success) {
         console.log('✓ Device linked successfully:', data.device_id);
-        // Store device ID in localStorage for reference
+        // Store device ID in localStorage for future use
         localStorage.setItem('linked_device_id', data.device_id);
         return { success: true, device_id: data.device_id };
       } else {
-        console.warn('Device linking failed:', data.error);
+        console.warn('Device linking failed:', data.error || data.message);
         // Not critical - device might not be connected yet
-        return { success: false, error: data.error };
+        return { success: false, error: data.error || data.message };
       }
     } catch (error) {
       console.warn('Device linking error:', error.message);

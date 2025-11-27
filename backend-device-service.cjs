@@ -323,18 +323,47 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
 
     const registry = await loadRegistry();
 
-    // Find device by computer_name or device_id
+    // Find device by device_id, computer_name, or most recent online device
     let device;
+    
+    // Strategy 1: Find by exact device_id
     if (device_id) {
       device = registry.devices[device_id];
-    } else if (computer_name) {
+    }
+    
+    // Strategy 2: Find by computer_name (exact match)
+    if (!device && computer_name) {
       device = Object.values(registry.devices)
         .find(d => d.computer_name === computer_name);
+    }
+    
+    // Strategy 3: Find most recently seen online device without an agent
+    // This handles the case where computer_name doesn't match
+    if (!device) {
+      const onlineDevices = Object.values(registry.devices)
+        .filter(d => {
+          const lastSeen = new Date(d.last_seen).getTime();
+          const now = Date.now();
+          const secondsSinceLastSeen = (now - lastSeen) / 1000;
+          return secondsSinceLastSeen < 30 && !d.agent_id; // Online and not linked
+        })
+        .sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
+      
+      if (onlineDevices.length > 0) {
+        device = onlineDevices[0];
+        log('info', 'Auto-linking to most recent online device', { 
+          device_id: device.device_id,
+          agent_id 
+        });
+      }
     }
 
     if (!device) {
       log('warn', 'Device not found for linking', { agent_id, computer_name, device_id });
-      return res.status(404).json({ error: 'Device not found' });
+      return res.status(404).json({ 
+        error: 'Device not found',
+        message: 'No online device available. Please ensure the Windows client is running.'
+      });
     }
 
     // Link device to agent

@@ -44,9 +44,18 @@ export const AuthProvider = ({ children }) => {
         
         // Link device to agent (non-blocking)
         const agentId = userData.id || userData.email
-        deviceService.linkDevice(agentId, userData.name).catch(err => {
-          console.warn('Device linking failed (non-critical):', err)
-        })
+        console.log('🔗 Attempting to link device for agent:', agentId, userData.name)
+        deviceService.linkDevice(agentId, userData.name)
+          .then(result => {
+            if (result.success) {
+              console.log('✅ Device linked successfully:', result.device_id)
+            } else {
+              console.warn('⚠️ Device linking failed:', result.error)
+            }
+          })
+          .catch(err => {
+            console.error('❌ Device linking error:', err)
+          })
         
         return { user: userData, token }
       }
@@ -66,9 +75,18 @@ export const AuthProvider = ({ children }) => {
       
       // Link device to agent (non-blocking)
       const agentId = response.user.id || response.user.email
-      deviceService.linkDevice(agentId, response.user.name).catch(err => {
-        console.warn('Device linking failed (non-critical):', err)
-      })
+      console.log('🔗 Attempting to link device for agent:', agentId, response.user.name)
+      deviceService.linkDevice(agentId, response.user.name)
+        .then(result => {
+          if (result.success) {
+            console.log('✅ Device linked successfully:', result.device_id)
+          } else {
+            console.warn('⚠️ Device linking failed:', result.error)
+          }
+        })
+        .catch(err => {
+          console.error('❌ Device linking error:', err)
+        })
       
       return response
     } catch (error) {

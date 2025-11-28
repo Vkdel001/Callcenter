@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+require('dotenv').config();
+
 /**
  * NIC Device Service - VPS Backend API
  * Manages ESP32 devices via polling architecture
@@ -264,16 +266,34 @@ app.post('/api/device/qr', validateApiKey, async (req, res) => {
 
     // Find device for this agent
     const registry = await loadRegistry();
-    const device = Object.values(registry.devices)
-      .find(d => d.agent_id === parseInt(agent_id));
+    
+    // Find all devices linked to this agent (handle both string and number comparison)
+    const agentDevices = Object.values(registry.devices)
+      .filter(d => {
+        // Compare as strings to handle both types
+        return String(d.agent_id) === String(agent_id) && d.status === 'online';
+      });
 
-    if (!device) {
-      log('warn', 'No device linked to agent', { agent_id });
+    if (agentDevices.length === 0) {
+      log('warn', 'No online device linked to agent', { agent_id });
       return res.status(404).json({ 
         success: false,
-        error: 'No device linked to this agent' 
+        error: 'No online device linked to this agent' 
       });
     }
+
+    // If multiple devices, use the most recently linked one
+    const device = agentDevices.sort((a, b) => {
+      const timeA = new Date(a.linked_at || a.last_seen).getTime();
+      const timeB = new Date(b.linked_at || b.last_seen).getTime();
+      return timeB - timeA; // Most recent first
+    })[0];
+
+    log('info', 'Using device for QR', { 
+      device_id: device.device_id,
+      agent_id,
+      total_devices: agentDevices.length
+    });
 
     // Create command
     const command = {
@@ -411,16 +431,28 @@ app.post('/api/device/rotation/start', validateApiKey, async (req, res) => {
 
     // Find device for this agent
     const registry = await loadRegistry();
-    const device = Object.values(registry.devices)
-      .find(d => d.agent_id === parseInt(agent_id));
+    
+    // Find all devices linked to this agent (handle both string and number comparison)
+    const agentDevices = Object.values(registry.devices)
+      .filter(d => {
+        // Compare as strings to handle both types
+        return String(d.agent_id) === String(agent_id) && d.status === 'online';
+      });
 
-    if (!device) {
-      log('warn', 'No device linked to agent', { agent_id });
+    if (agentDevices.length === 0) {
+      log('warn', 'No online device linked to agent', { agent_id });
       return res.status(404).json({ 
         success: false,
-        error: 'No device linked to this agent' 
+        error: 'No online device linked to this agent' 
       });
     }
+
+    // If multiple devices, use the most recently linked one
+    const device = agentDevices.sort((a, b) => {
+      const timeA = new Date(a.linked_at || a.last_seen).getTime();
+      const timeB = new Date(b.linked_at || b.last_seen).getTime();
+      return timeB - timeA; // Most recent first
+    })[0];
 
     // Create rotation start command
     const command = {

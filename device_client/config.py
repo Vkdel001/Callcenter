@@ -11,8 +11,8 @@ class Config:
         # TODO: Update these with your actual VPS details
         # For local testing, use localhost:5001
         # For production, use your VPS URL
-        self.vps_url = os.getenv('VPS_URL', 'http://localhost:5001')
-        self.api_key = os.getenv('API_KEY', 'NIC-DEVICE-API-KEY-2024-CHANGE-ME')
+        self.vps_url = os.getenv('VPS_URL', 'https://payments.niclmauritius.site')
+        self.api_key = os.getenv('API_KEY', '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=')
         
         # Computer Information
         self.computer_name = self.get_computer_name()

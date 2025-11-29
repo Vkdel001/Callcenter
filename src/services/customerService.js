@@ -131,13 +131,22 @@ export const customerService = {
       return {
         id: customer.id,
         policyNumber: customer.policy_number,
+        policy_number: customer.policy_number,  // Keep snake_case for compatibility
         name: customer.name,
         mobile: customer.mobile,
         email: customer.email,
         amountDue: customer.amount_due,
+        amount_due: customer.amount_due,  // Keep snake_case for compatibility
         status: customer.status,
         lastCallDate: customer.last_call_date,
-        attempts: customer.total_attempts || 0
+        attempts: customer.total_attempts || 0,
+        // AOD-related fields
+        title_owner1: customer.title_owner1,
+        title_owner2: customer.title_owner2,
+        name_owner2: customer.name_owner2,
+        address: customer.address,
+        national_id: customer.national_id,
+        national_id_owner2: customer.national_id_owner2  // Owner 2 national ID
       }
     } catch (error) {
       console.error('Failed to get customer:', error)

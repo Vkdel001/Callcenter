@@ -75,22 +75,58 @@ class EmailService {
   }
 
   async sendPaymentReminderEmail(customer, qrCodeUrl, paymentLink) {
-    const htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink)
-    const textContent = this.generatePaymentReminderText(customer, paymentLink)
+    try {
+      // Convert QR code URL to base64 for inline attachment (better for Gmail)
+      let qrBase64 = null;
+      let attachments = [];
+      
+      if (qrCodeUrl) {
+        try {
+          // If it's already a data URL, extract the base64 part
+          if (qrCodeUrl.startsWith('data:image')) {
+            qrBase64 = qrCodeUrl.split(',')[1];
+          } else {
+            // Otherwise, fetch and convert to base64
+            qrBase64 = await this.urlToBase64(qrCodeUrl);
+          }
+          
+          // Add as inline attachment with CID
+          attachments.push({
+            name: 'qr-code.png',
+            content: qrBase64,
+            type: 'image/png'
+          });
+        } catch (error) {
+          console.warn('Failed to convert QR to base64, using URL fallback:', error);
+        }
+      }
+      
+      const htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl)
+      const textContent = this.generatePaymentReminderText(customer, paymentLink)
 
-    return await this.sendTransactionalEmail({
-      to: {
-        email: customer.email,
-        name: customer.name
-      },
-      subject: `Payment Reminder - Policy ${customer.policyNumber}`,
-      htmlContent,
-      textContent
-      // No attachments - QR code is embedded in HTML
-    })
+      return await this.sendTransactionalEmail({
+        to: {
+          email: customer.email,
+          name: customer.name
+        },
+        subject: `Payment Reminder - Policy ${customer.policyNumber || 'N/A'}`,
+        htmlContent,
+        textContent,
+        attachments
+      })
+    } catch (error) {
+      console.error('Payment reminder email failed:', error);
+      return {
+        success: false,
+        error: error.message
+      }
+    }
   }
 
-  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink) {
+  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null) {
+    // Use inline CID if available, otherwise use URL
+    const qrSrc = qrImageSrc || qrCodeUrl;
+    
     return `
       <!DOCTYPE html>
       <html>
@@ -127,10 +163,10 @@ class EmailService {
               <p><strong>Amount Due:</strong> <span class="amount">MUR ${customer.amountDue.toLocaleString()}</span></p>
             </div>
             
-            ${qrCodeUrl ? `
+            ${qrSrc ? `
             <div class="qr-section">
               <h3>Quick Payment via QR Code</h3>
-              <img src="${qrCodeUrl}" alt="Payment QR Code" class="qr-code" style="max-width: 200px; border: 1px solid #ddd;">
+              <img src="${qrSrc}" alt="Payment QR Code" class="qr-code" style="max-width: 200px; border: 1px solid #ddd;">
               <p>Scan this QR code with your mobile banking app to make payment instantly.</p>
             </div>
             ` : ''}

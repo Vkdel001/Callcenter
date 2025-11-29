@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
 import { deviceService } from '../../services/deviceService'
-import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText, Bell, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MessageSquare, QrCode, Send, Download, CreditCard, FileText, Bell, RefreshCw, Edit } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { useAuth } from '../../contexts/AuthContext'
 import AODModal from '../../components/modals/PaymentPlanModal'
@@ -13,6 +13,8 @@ import { installmentService } from '../../services/installmentService'
 import { aodPdfService } from '../../services/aodPdfService'
 import { reminderService } from '../../services/reminderService'
 import { signatureReminderService } from '../../services/signatureReminderService'
+import UpdateContactModal from '../../components/modals/UpdateContactModal'
+import contactUpdateService from '../../services/contactUpdateService'
 
 const CustomerDetail = () => {
   const { id } = useParams()
@@ -25,6 +27,8 @@ const CustomerDetail = () => {
   const [sendingReminder, setSendingReminder] = useState(false)
   const [markingSignature, setMarkingSignature] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [showUpdateContactModal, setShowUpdateContactModal] = useState(false)
+  const [latestContactUpdate, setLatestContactUpdate] = useState(null)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
@@ -113,7 +117,26 @@ const CustomerDetail = () => {
   )
 
   const generateQRMutation = useMutation(
-    () => customerService.generateQRCode(customer),
+    async () => {
+      // Check for updated contact info
+      const latestUpdate = await contactUpdateService.getLatestContact(customer.id);
+      
+      // Determine which values to use
+      const updatedAmount = latestUpdate?.new_amount || customer.amount_due;
+      const updatedEmail = latestUpdate?.new_email || customer.email;
+      const updatedMobile = latestUpdate?.new_mobile || customer.mobile;
+      
+      // Create customer data with both snake_case and camelCase for compatibility
+      const customerData = {
+        ...customer,
+        email: updatedEmail,
+        mobile: updatedMobile,
+        amount_due: updatedAmount,
+        amountDue: updatedAmount,  // Add camelCase version for qrService
+      };
+      
+      return customerService.generateQRCode(customerData);
+    },
     {
       onSuccess: async (data) => {
         if (data.success === false) {
@@ -219,10 +242,27 @@ const CustomerDetail = () => {
     }
   }
 
-  const handleSendEmail = () => {
+  const handleSendEmail = async () => {
     if (qrData && customer) {
+      // Check for updated contact info
+      const latestUpdate = await contactUpdateService.getLatestContact(customer.id);
+      
+      // Use updated values if available
+      const updatedEmail = latestUpdate?.new_email || customer.email;
+      const updatedAmount = latestUpdate?.new_amount || customer.amount_due;
+      
+      // Create updated customer object for email
+      const customerForEmail = {
+        ...customer,
+        email: updatedEmail,
+        amount_due: updatedAmount,
+        amountDue: updatedAmount,  // Add camelCase version for email template
+        policyNumber: customer.policy_number || customer.policyNumber || 'N/A',  // Handle both snake_case and camelCase
+        policy_number: customer.policy_number || customer.policyNumber || 'N/A'  // Ensure both formats available
+      };
+      
       sendEmailMutation.mutate({
-        customer,
+        customer: customerForEmail,
         qrCodeUrl: qrData.qrCodeUrl,
         paymentLink: qrData.paymentLink
       })
@@ -413,6 +453,14 @@ const CustomerDetail = () => {
           )}
           
           <button
+            onClick={() => setShowUpdateContactModal(true)}
+            className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Update Contact
+          </button>
+          
+          <button
             onClick={handleGenerateQR}
             disabled={generateQRMutation.isLoading}
             className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
@@ -422,6 +470,19 @@ const CustomerDetail = () => {
           </button>
         </div>
       </div>
+      
+      {/* Update Contact Modal */}
+      <UpdateContactModal
+        isOpen={showUpdateContactModal}
+        onClose={() => setShowUpdateContactModal(false)}
+        customer={customer}
+        onSuccess={(updateData) => {
+          // Store latest update for use in QR generation
+          setLatestContactUpdate(updateData);
+          // Refresh customer data
+          queryClient.invalidateQueries(['customer', id]);
+        }}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Customer Info */}

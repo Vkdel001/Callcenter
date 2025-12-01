@@ -126,3 +126,10 @@ wheels/
 device_client/*.log
 device_client/dist/
 device_client/build/
+
+# AOD Upload Service (server-side only)
+aod-upload-service.cjs
+uploads/
+
+# Nginx configuration (server-specific)
+nginx-*.conf

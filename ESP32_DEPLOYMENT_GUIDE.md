@@ -92,6 +92,33 @@
 
 ---
 
+## 🔑 Configuration Summary (READ THIS FIRST!)
+
+**All three components must use the SAME API key for authentication:**
+
+| Component | File to Edit | Setting | Production Value |
+|-----------|-------------|---------|------------------|
+| **VPS Backend** | `.env` | `DEVICE_API_KEY=` | `+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=` |
+| **Frontend** | `src/services/deviceService.js` | `const DEVICE_API_KEY =` | `'+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI='` |
+| **Windows Client** | `device_client/config.py` | `self.api_key = os.getenv('API_KEY', ...)` | `'+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI='` |
+
+**URLs Configuration:**
+
+| Component | Setting | Production Value |
+|-----------|---------|------------------|
+| **VPS Backend** | Runs on port | `5001` (localhost only) |
+| **Frontend** | `DEVICE_SERVICE_URL` | `'https://payments.niclmauritius.site'` |
+| **Windows Client** | `self.vps_url` | `'https://payments.niclmauritius.site'` |
+| **Nginx Proxy** | Proxies `/api/device/` to | `http://localhost:5001/api/device/` |
+
+**⚠️ CRITICAL NOTES:**
+1. The API key is **hardcoded** in all three places - no environment variables are used
+2. All three API keys must be **identical** (including the `=` at the end)
+3. Frontend and Windows client both connect to `https://payments.niclmauritius.site`
+4. Backend runs on `localhost:5001` and is accessed via Nginx proxy
+
+---
+
 ## ✅ Pre-Deployment Checklist
 
 ### VPS Server Requirements
@@ -167,27 +194,39 @@ pm2 --version
 nano .env
 ```
 
-Add these new variables:
+**Check if these variables already exist** (they should be at the bottom of your `.env` file):
 
 ```bash
 # Device Service Configuration
 DEVICE_SERVICE_PORT=5001
-DEVICE_API_KEY=NIC-DEVICE-API-KEY-2024-CHANGE-ME-PRODUCTION
-
-# IMPORTANT: Change the API key to a secure random string
-# Generate with: openssl rand -base64 32
+DEVICE_API_KEY=+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=
 ```
 
-**Generate Secure API Key:**
+**If they don't exist, add them:**
+
 ```bash
-# Generate a secure API key
-openssl rand -base64 32
-
-# Example output: 8K7mN2pQ5rT9vX3wY6zA4bC8dE1fG7hJ9kL0mN3pQ5r=
-# Copy this and use it as DEVICE_API_KEY
+# Add to bottom of .env file
+DEVICE_SERVICE_PORT=5001
+DEVICE_API_KEY=+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=
 ```
 
-### Step 5: Create Device Data Directory
+**⚠️ IMPORTANT**: 
+- This API key is already generated and secure
+- You must use this **exact same key** in frontend and Windows client
+- If you want to generate a new key: `openssl rand -base64 32`
+- If you change it here, you MUST update it in all three places (see Configuration Summary above)
+
+### Step 5: Install Dependencies
+
+```bash
+# Install dotenv package (required for loading .env file)
+npm install dotenv
+
+# Verify installation
+npm list dotenv
+```
+
+### Step 6: Create Device Data Directory
 
 ```bash
 # Create directory for device data storage
@@ -198,7 +237,7 @@ chown -R www-data:www-data /var/www/nic-callcenter/device_data
 chmod 755 /var/www/nic-callcenter/device_data
 ```
 
-### Step 6: Start Device Service with PM2
+### Step 7: Start Device Service with PM2
 
 ```bash
 # Start the device service
@@ -213,7 +252,7 @@ pm2 startup
 # Verify service is running
 pm2 status
 
-# Check logs
+# Check logs to verify .env was loaded
 pm2 logs device-api --lines 20
 ```
 
@@ -226,7 +265,10 @@ pm2 logs device-api --lines 20
 └─────┴──────────────┴─────────┴─────────┴──────────┘
 ```
 
-### Step 7: Configure Nginx Proxy
+**✅ Important Note:**
+The backend service now automatically loads the `.env` file using `dotenv` (added in `backend-device-service.cjs`). No need for PM2 ecosystem files or environment variable flags. Just make sure `dotenv` is installed (Step 5).
+
+### Step 8: Configure Nginx Proxy
 
 ```bash
 # Edit Nginx configuration
@@ -341,30 +383,46 @@ curl https://your-domain.com/api/device/health
 
 ### Step 1: Update Device Service Configuration
 
+**⚠️ IMPORTANT**: The device service configuration is **hardcoded** in the JavaScript file. You must edit the file directly.
+
 ```bash
 # Edit device service configuration
 nano src/services/deviceService.js
 ```
 
-Update the service URL:
+**Find these two lines** (around line 6-7):
 
 ```javascript
 // BEFORE (localhost):
 const DEVICE_SERVICE_URL = 'http://localhost:5001';
-
-// AFTER (production):
-const DEVICE_SERVICE_URL = 'https://your-domain.com';
+const DEVICE_API_KEY = 'NIC-DEVICE-API-KEY-2024-CHANGE-ME';
 ```
 
-**Complete Updated Configuration:**
+**Change to:**
+
+```javascript
+// AFTER (production):
+const DEVICE_SERVICE_URL = 'https://payments.niclmauritius.site';
+const DEVICE_API_KEY = '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=';
+```
+
+**⚠️ Critical Notes:**
+- The API key must **match exactly** with `DEVICE_API_KEY` in your VPS `.env` file
+- Include the `=` at the end of the API key
+- The URL should be your domain (without `/api/device/` path)
+- Do NOT use `.env.production` - this code doesn't read environment variables
+
+**After editing, the top of the file should look like:**
+
 ```javascript
 /**
  * ESP32 Device Service Client
  * Communicates with VPS backend to queue QR commands for devices
+ * Uses polling-based architecture for production deployment
  */
 
-const DEVICE_SERVICE_URL = 'https://your-domain.com'; // ✅ UPDATED
-const DEVICE_API_KEY = 'NIC-DEVICE-API-KEY-2024-CHANGE-ME-PRODUCTION'; // ✅ UPDATED
+const DEVICE_SERVICE_URL = 'https://payments.niclmauritius.site';
+const DEVICE_API_KEY = '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=';
 
 class DeviceService {
   constructor() {
@@ -376,22 +434,7 @@ class DeviceService {
 }
 ```
 
-### Step 2: Update Environment Variables
-
-```bash
-# Edit production environment file
-nano .env.production
-```
-
-Add device service configuration:
-
-```bash
-# Device Service Configuration
-VITE_DEVICE_SERVICE_URL=https://your-domain.com
-VITE_DEVICE_API_KEY=NIC-DEVICE-API-KEY-2024-CHANGE-ME-PRODUCTION
-```
-
-### Step 3: Build Frontend
+### Step 2: Build Frontend
 
 ```bash
 # Install dependencies (if needed)
@@ -404,7 +447,7 @@ npm run build
 ls -la dist/
 ```
 
-### Step 4: Deploy Frontend
+### Step 3: Deploy Frontend
 
 ```bash
 # Frontend is already in dist/ folder
@@ -422,37 +465,77 @@ curl -I https://your-domain.com
 
 ### Step 1: Update Windows Client Configuration
 
+**⚠️ CRITICAL**: The Windows client configuration must match your VPS backend exactly!
+
 **On your development machine:**
 
 ```bash
 # Navigate to device client folder
 cd device_client
 
-# Edit configuration
+# Edit configuration file
 nano config.py
 ```
 
-Update VPS URL and API key:
+**Find these lines** (around line 13-14):
+
+```python
+# BEFORE (default):
+self.vps_url = os.getenv('VPS_URL', 'http://localhost:5001')
+self.api_key = os.getenv('API_KEY', 'NIC-DEVICE-API-KEY-2024-CHANGE-ME')
+```
+
+**Change to** (hardcoded production values):
+
+```python
+# AFTER (production):
+self.vps_url = os.getenv('VPS_URL', 'https://payments.niclmauritius.site')
+self.api_key = os.getenv('API_KEY', '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=')
+```
+
+**📋 Configuration Checklist:**
+
+| Setting | Value | Must Match |
+|---------|-------|------------|
+| `vps_url` | `https://payments.niclmauritius.site` | Your actual domain |
+| `api_key` | `+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=` | `DEVICE_API_KEY` in VPS `.env` |
+
+**⚠️ Why use `os.getenv()` with defaults?**
+- Keeps the fallback pattern for flexibility
+- The default value (second parameter) is what gets used when building the EXE
+- You can still override with environment variables if needed later
+
+**Complete updated section should look like:**
 
 ```python
 class Config:
     def __init__(self):
         # VPS Configuration (PRODUCTION)
-        self.vps_url = 'https://your-domain.com'  # ✅ UPDATED
-        self.api_key = 'NIC-DEVICE-API-KEY-2024-CHANGE-ME-PRODUCTION'  # ✅ UPDATED
+        self.vps_url = os.getenv('VPS_URL', 'https://payments.niclmauritius.site')
+        self.api_key = os.getenv('API_KEY', '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=')
+        
+        # Computer Information
+        self.computer_name = self.get_computer_name()
+        
+        # Logging Configuration
+        self.log_file = os.path.join(os.getcwd(), 'device_client.log')
+        self.log_level = 'INFO'
+        self.log_max_size = 10 * 1024 * 1024  # 10 MB
+        self.log_backup_count = 5
         
         # Polling Configuration
         self.poll_interval = 2  # seconds
-        self.reconnect_interval = 5  # seconds
         
         # ESP32 Configuration
-        self.baud_rate = 9600
-        self.timeout = 5
+        self.esp32_baud_rate = 9600
+        self.esp32_timeout = 5
+        self.device_width = 320
+        self.device_height = 480
         self.chunk_size = 1024
         
-        # Logging
-        self.log_file = 'device_client.log'
-        self.log_level = 'INFO'
+        # Retry Configuration
+        self.max_retries = 3
+        self.retry_delay = 5  # seconds
 ```
 
 ### Step 2: Build Windows EXE
@@ -963,6 +1046,82 @@ Deployment is successful when:
 
 ---
 
+## � Configurantion Troubleshooting
+
+### API Key Mismatch Issues
+
+**Symptom**: Windows client shows "Authentication failed" or "401 Unauthorized"
+
+**Solution**: Verify all three API keys match exactly:
+
+```bash
+# 1. Check VPS backend
+grep "DEVICE_API_KEY" /var/www/nic-callcenter/.env
+
+# 2. Check frontend
+grep "DEVICE_API_KEY" /var/www/nic-callcenter/src/services/deviceService.js
+
+# 3. Check Windows client (on dev machine)
+grep "api_key" device_client/config.py
+```
+
+All three should show: `+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=`
+
+**If backend still returns 401 after verifying keys match:**
+
+```bash
+# Make sure dotenv is installed
+cd /var/www/nic-callcenter
+npm install dotenv
+
+# Restart the service to reload .env
+pm2 restart device-api
+
+# Check logs for any errors
+pm2 logs device-api --lines 30
+```
+
+### URL Configuration Issues
+
+**Symptom**: Windows client can't connect to VPS
+
+**Solution**: Verify URLs are correct:
+
+```bash
+# Frontend should use HTTPS domain
+grep "DEVICE_SERVICE_URL" src/services/deviceService.js
+# Should show: https://payments.niclmauritius.site
+
+# Windows client should use same HTTPS domain
+grep "vps_url" device_client/config.py
+# Should show: https://payments.niclmauritius.site
+```
+
+### Quick Configuration Verification
+
+Run this on VPS to verify backend is configured:
+
+```bash
+cd /var/www/nic-callcenter
+
+echo "=== Backend Configuration ==="
+grep "DEVICE_" .env
+
+echo ""
+echo "=== Frontend Configuration ==="
+head -10 src/services/deviceService.js | grep -E "(DEVICE_SERVICE_URL|DEVICE_API_KEY)"
+
+echo ""
+echo "=== Service Status ==="
+pm2 status device-api
+
+echo ""
+echo "=== Health Check ==="
+curl -s https://payments.niclmauritius.site/api/device/health | jq
+```
+
+---
+
 ## 📞 Support Information
 
 ### Technical Contacts
@@ -997,6 +1156,14 @@ Deployment is successful when:
 # ESP32 Integration - Quick Deployment Script
 
 echo "🚀 Starting ESP32 Integration Deployment..."
+echo ""
+echo "⚠️  PREREQUISITES CHECK:"
+echo "   1. Have you updated src/services/deviceService.js with production URL and API key?"
+echo "   2. Have you updated device_client/config.py with production URL and API key?"
+echo "   3. Have you verified DEVICE_API_KEY in .env matches the other two?"
+echo ""
+echo "Press Enter to continue or Ctrl+C to cancel..."
+read
 
 # 1. Pull latest code
 cd /var/www/nic-callcenter
@@ -1009,29 +1176,39 @@ npm install -g pm2
 mkdir -p device_data
 chown -R www-data:www-data device_data
 
-# 4. Start device service
+# 4. Verify .env has device configuration
+echo "✅ Checking .env configuration..."
+grep "DEVICE_API_KEY" .env || echo "⚠️  WARNING: DEVICE_API_KEY not found in .env"
+grep "DEVICE_SERVICE_PORT" .env || echo "⚠️  WARNING: DEVICE_SERVICE_PORT not found in .env"
+
+# 5. Start device service
 pm2 start backend-device-service.cjs --name device-api
 pm2 save
 
-# 5. Build frontend
+# 6. Build frontend
 npm install
 npm run build
 
-# 6. Reload Nginx
+# 7. Reload Nginx
 sudo systemctl reload nginx
 
-# 7. Verify deployment
+# 8. Verify deployment
+echo ""
 echo "✅ Checking device service..."
 pm2 status device-api
 
+echo ""
 echo "✅ Testing health endpoint..."
-curl https://your-domain.com/api/device/health
+curl https://payments.niclmauritius.site/api/device/health
 
+echo ""
 echo "🎉 Deployment complete!"
+echo ""
 echo "📋 Next steps:"
-echo "   1. Distribute Windows client to agents"
-echo "   2. Test with at least 3 agents"
-echo "   3. Monitor PM2 logs for issues"
+echo "   1. Build Windows client EXE (on dev machine)"
+echo "   2. Distribute to agent computers"
+echo "   3. Test with at least 3 agents"
+echo "   4. Monitor PM2 logs: pm2 logs device-api"
 ```
 
 Save this as `deploy-esp32.sh` and run with:

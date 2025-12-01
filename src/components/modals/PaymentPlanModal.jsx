@@ -41,10 +41,10 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
 
   // Auto-calculate when values change - only for installments
   useEffect(() => {
-    if (watchedValues.payment_method === 'installments' && customer?.amountDue && watchedValues.months) {
+    if (watchedValues.payment_method === 'installments' && watchedValues.outstanding_amount && watchedValues.months) {
       try {
         const calc = paymentPlanService.calculateInstallments(
-          customer.amountDue,
+          parseFloat(watchedValues.outstanding_amount) || 0,
           parseFloat(watchedValues.down_payment) || 0,
           parseInt(watchedValues.months) || 6
         )
@@ -142,7 +142,7 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
         customer: parseInt(customer?.id) || 0,  // Changed from customer_id to customer
         agent: parseInt(user?.id) || 0,         // Changed from agent_id to agent  
         policy_number: customer?.policyNumber || '',
-        outstanding_amount: customer?.amountDue || 0,
+        outstanding_amount: parseFloat(data.outstanding_amount) || 0,  // Use edited amount from form
         payment_method: data.payment_method || 'installments',
         status: 'active',
         agreement_date: new Date().toISOString(),
@@ -193,7 +193,13 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
 
     setGeneratingPdf(true)
     try {
-      await aodPdfService.downloadPdf(createdPlan, customer, createdPlan.installments || [])
+      // Fetch complete customer data including title, national_id, address fields
+      const { customerService } = await import('../../services/customerService')
+      const fullCustomer = await customerService.getCustomerById(customer.id)
+      
+      console.log('📋 Full customer data for PDF:', fullCustomer)
+      
+      await aodPdfService.downloadPdf(createdPlan, fullCustomer, createdPlan.installments || [])
       alert('AOD PDF downloaded successfully!')
     } catch (error) {
       console.error('PDF generation failed:', error)
@@ -208,11 +214,17 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
 
     setSendingEmail(true)
     try {
+      // Fetch complete customer data including title, national_id, address fields
+      const { customerService } = await import('../../services/customerService')
+      const fullCustomer = await customerService.getCustomerById(customer.id)
+      
+      console.log('📋 Full customer data for email:', fullCustomer)
+      
       // Generate PDF blob for email attachment
-      const pdfBlob = await aodPdfService.getPdfBlob(createdPlan, customer, createdPlan.installments || [])
+      const pdfBlob = await aodPdfService.getPdfBlob(createdPlan, fullCustomer, createdPlan.installments || [])
 
       // Send email with PDF attachment
-      const result = await emailService.sendAODEmail(customer, createdPlan, pdfBlob, createdPlan.installments || [])
+      const result = await emailService.sendAODEmail(fullCustomer, createdPlan, pdfBlob, createdPlan.installments || [])
 
       if (result.success) {
         alert('AOD PDF emailed successfully to customer!')
@@ -340,15 +352,25 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Outstanding Amount (MUR)
+                    Amount for AOD (MUR) *
                   </label>
                   <input
-                    value={customer?.amountDue || 0}
+                    {...register('outstanding_amount', {
+                      required: 'Amount is required',
+                      min: { value: 0.01, message: 'Amount must be greater than 0' },
+                      max: { value: 10000000, message: 'Amount is too large' }
+                    })}
                     type="number"
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter AOD amount"
                   />
-                  <p className="mt-1 text-xs text-gray-500">Auto-filled from customer data</p>
+                  {errors.outstanding_amount && (
+                    <p className="mt-1 text-sm text-red-600">{errors.outstanding_amount.message}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Pre-filled from customer data. You can edit if needed.
+                  </p>
                 </div>
 
               </div>
@@ -554,8 +576,8 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
                     <p className="font-medium">{customer?.policyNumber}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Outstanding Amount:</span>
-                    <p className="font-medium">MUR {customer?.amountDue?.toLocaleString()}</p>
+                    <span className="text-gray-600">Amount for AOD:</span>
+                    <p className="font-medium">MUR {parseFloat(watchedValues.outstanding_amount || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">Down Payment:</span>

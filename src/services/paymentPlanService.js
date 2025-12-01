@@ -26,6 +26,46 @@ export const paymentPlanService = {
     }
   },
 
+  // Get all AODs for a customer with agent names (for history display)
+  async getCustomerAODHistory(customerId) {
+    try {
+      const { agentApi } = await import('./apiClient')
+      
+      // Get all payment plans for this customer
+      const response = await paymentApi.get('/nic_cc_payment_plan')
+      const allPlans = response.data || []
+      
+      // Filter for this customer
+      const customerPlans = allPlans.filter(plan => 
+        plan.customer === parseInt(customerId)
+      )
+      
+      // Get all agents to map names
+      const agentsResponse = await agentApi.get('/nic_cc_agent')
+      const agents = agentsResponse.data || []
+      
+      // Create agent lookup map
+      const agentMap = {}
+      agents.forEach(agent => {
+        agentMap[agent.id] = agent.name || agent.username || `Agent ${agent.id}`
+      })
+      
+      // Sort by creation date (newest first)
+      const sortedPlans = customerPlans.sort((a, b) => 
+        new Date(b.agreement_date || b.created_at) - new Date(a.agreement_date || b.created_at)
+      )
+      
+      // Add agent names to plans
+      return sortedPlans.map(plan => ({
+        ...plan,
+        agentName: agentMap[plan.created_by_agent] || agentMap[plan.agent] || 'Unknown Agent'
+      }))
+    } catch (error) {
+      console.error('Error fetching AOD history:', error)
+      return []
+    }
+  },
+
   // Get payment plan by ID
   async getPaymentPlan(planId) {
     try {
@@ -278,6 +318,63 @@ export const paymentPlanService = {
       }
     } catch (error) {
       console.error('Error cleaning up orphaned installments:', error)
+      throw error
+    }
+  },
+
+  // Mark AOD as received with signed document upload
+  async markAODAsReceived(planId, file, agentId, notes = '') {
+    try {
+      console.log('📤 Uploading signed AOD document for plan:', planId)
+
+      // Step 1: Upload file to VPS
+      const formData = new FormData()
+      formData.append('document', file)
+      formData.append('payment_plan_id', planId)
+
+      const uploadResponse = await fetch('/api/upload-aod', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || 'File upload failed')
+      }
+
+      const uploadResult = await uploadResponse.json()
+      console.log('✅ File uploaded to VPS:', uploadResult.url)
+
+      // Step 2: Update Xano with file URL and metadata
+      const now = new Date().toISOString()
+      const updateData = {
+        signed_document: uploadResult.url,  // Store VPS URL as text
+        signature_status: 'received',
+        signature_received_date: now,
+        signed_document_uploaded_at: now,
+        signed_document_uploaded_by: agentId
+      }
+
+      if (notes) {
+        updateData.signed_document_notes = notes
+      }
+
+      console.log('📤 Updating Xano with file URL and metadata...')
+      console.log('Plan ID:', planId)
+      console.log('Agent ID:', agentId)
+      console.log('File URL:', uploadResult.url)
+      console.log('Notes:', notes)
+      
+      const response = await paymentApi.patch(
+        `/nic_cc_payment_plan/${planId}`,
+        updateData
+      )
+
+      console.log('✅ AOD marked as received with document uploaded!')
+      return response.data
+    } catch (error) {
+      console.error('❌ Error marking AOD as received:', error)
+      console.error('Error details:', error.response?.data || error.message)
       throw error
     }
   }

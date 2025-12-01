@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
@@ -15,10 +15,12 @@ import { reminderService } from '../../services/reminderService'
 import { signatureReminderService } from '../../services/signatureReminderService'
 import UpdateContactModal from '../../components/modals/UpdateContactModal'
 import contactUpdateService from '../../services/contactUpdateService'
+import MarkAODReceivedModal from '../../components/modals/MarkAODReceivedModal'
 
 const CustomerDetail = () => {
   const { id } = useParams()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrData, setQrData] = useState(null)
@@ -29,6 +31,9 @@ const CustomerDetail = () => {
   const [refreshing, setRefreshing] = useState(false)
   const [showUpdateContactModal, setShowUpdateContactModal] = useState(false)
   const [latestContactUpdate, setLatestContactUpdate] = useState(null)
+  const [showMarkReceivedModal, setShowMarkReceivedModal] = useState(false)
+  const [selectedAODForUpload, setSelectedAODForUpload] = useState(null)
+  const [uploadingDocument, setUploadingDocument] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
@@ -91,6 +96,13 @@ const CustomerDetail = () => {
   const { data: callLogs = [], isLoading: callLogsLoading } = useQuery(
     ['callLogs', id],
     () => customerService.getCallLogs(id),
+    { enabled: !!id }
+  )
+
+  // Get AOD History
+  const { data: aodHistory = [], isLoading: aodHistoryLoading } = useQuery(
+    ['aodHistory', id],
+    () => paymentPlanService.getCustomerAODHistory(id),
     { enabled: !!id }
   )
 
@@ -308,39 +320,12 @@ const CustomerDetail = () => {
     }
   }
 
-  const handleMarkSignatureReceived = async () => {
+  const handleMarkSignatureReceived = () => {
     if (!existingAOD) return
-
-    const confirmed = confirm(
-      `Are you sure you have received the signed AOD document from ${customer.name}?\n\n` +
-      `This will:\n` +
-      `• Activate the payment plan\n` +
-      `• Recalculate payment dates from today\n` +
-      `• Start sending payment reminders\n\n` +
-      `This action cannot be undone.`
-    )
-
-    if (!confirmed) return
-
-    setMarkingSignature(true)
-    try {
-      const result = await signatureReminderService.markSignatureReceived(existingAOD.id, user.id)
-      
-      if (result.success) {
-        alert('✅ AOD signature confirmed!\n\nPayment plan is now active and reminders will begin as scheduled.')
-        // Refresh all related data
-        queryClient.invalidateQueries(['customer', id])
-        queryClient.invalidateQueries(['customerAOD', id])
-        queryClient.invalidateQueries(['customerInstallments'])
-      } else {
-        alert(`Failed to confirm signature: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Failed to mark signature received:', error)
-      alert(`Failed to confirm signature: ${error.message}`)
-    } finally {
-      setMarkingSignature(false)
-    }
+    
+    // Open the upload modal instead of directly marking as received
+    setSelectedAODForUpload(existingAOD)
+    setShowMarkReceivedModal(true)
   }
 
   const handleSendReminder = async () => {
@@ -384,6 +369,123 @@ const CustomerDetail = () => {
     }
   }
 
+  // AOD History handlers
+  const handleDownloadAODFromHistory = async (aod) => {
+    try {
+      // Get installments if it's an installment payment
+      let installments = []
+      if (aod.payment_method === 'installments') {
+        installments = await installmentService.getPaymentPlanInstallments(aod.id)
+      }
+
+      // Generate and download PDF
+      await aodPdfService.downloadPdf(aod, customer, installments)
+      alert('AOD PDF downloaded successfully!')
+    } catch (error) {
+      console.error('Failed to download AOD PDF:', error)
+      alert(`Failed to download AOD PDF: ${error.message}`)
+    }
+  }
+
+  const handleCancelAOD = async (aod) => {
+    const confirmed = confirm(
+      `Are you sure you want to cancel AOD #${aod.id}?\n\n` +
+      `Amount: MUR ${aod.outstanding_amount?.toLocaleString()}\n` +
+      `This will cancel all pending installments.\n\n` +
+      `This action cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      await paymentPlanService.cancelPaymentPlan(aod.id)
+      alert('AOD cancelled successfully!')
+      // Refresh data
+      queryClient.invalidateQueries(['aodHistory', id])
+      queryClient.invalidateQueries(['customerAOD', id])
+    } catch (error) {
+      console.error('Failed to cancel AOD:', error)
+      alert(`Failed to cancel AOD: ${error.message}`)
+    }
+  }
+
+  const handleMarkAsReceived = (aod) => {
+    setSelectedAODForUpload(aod)
+    setShowMarkReceivedModal(true)
+  }
+
+  const handleUploadSignedDocument = async ({ file, notes }) => {
+    if (!selectedAODForUpload) return
+
+    setUploadingDocument(true)
+    try {
+      // Step 1: Upload the signed document
+      await paymentPlanService.markAODAsReceived(
+        selectedAODForUpload.id,
+        file,
+        parseInt(user?.id) || 0,
+        notes
+      )
+
+      // Step 2: Activate the signature workflow (recalculate dates, activate reminders)
+      const result = await signatureReminderService.markSignatureReceived(
+        selectedAODForUpload.id,
+        user.id
+      )
+
+      if (result.success) {
+        alert('✅ Signed document uploaded successfully!\n\n' +
+              'Signature status updated to "received".\n' +
+              'Payment plan activated.\n' +
+              'Payment reminders will now be sent.')
+      } else {
+        alert('⚠️ Document uploaded but reminder activation failed.\n\n' +
+              'Please contact support.')
+      }
+      
+      // Refresh all data
+      queryClient.invalidateQueries(['customer', id])
+      queryClient.invalidateQueries(['customerAOD', id])
+      queryClient.invalidateQueries(['aodHistory', id])
+      queryClient.invalidateQueries(['customerInstallments'])
+      
+      // Close modal
+      setShowMarkReceivedModal(false)
+      setSelectedAODForUpload(null)
+    } catch (error) {
+      console.error('Failed to upload signed document:', error)
+      alert(`❌ Failed to upload document: ${error.message}`)
+    } finally {
+      setUploadingDocument(false)
+    }
+  }
+
+  const handleViewInstallments = async (aod) => {
+    if (aod.payment_method !== 'installments') {
+      alert('This AOD does not have installments.')
+      return
+    }
+
+    try {
+      const installments = await installmentService.getPaymentPlanInstallments(aod.id)
+      
+      if (installments.length === 0) {
+        alert('No installments found for this AOD.')
+        return
+      }
+
+      // Create a summary message
+      const summary = installments.map((inst, idx) => 
+        `${idx + 1}. Due: ${new Date(inst.due_date).toLocaleDateString()} - MUR ${inst.amount.toLocaleString()} - ${inst.status}`
+      ).join('\n')
+
+      alert(`Installments for AOD #${aod.id}:\n\n${summary}`)
+    } catch (error) {
+      console.error('Failed to fetch installments:', error)
+      alert(`Failed to fetch installments: ${error.message}`)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -408,13 +510,13 @@ const CustomerDetail = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link
-            to="/customers"
+          <button
+            onClick={() => navigate(-1)}
             className="flex items-center text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-5 w-5 mr-1" />
             Back to Customers
-          </Link>
+          </button>
         </div>
 
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-3">
@@ -580,7 +682,7 @@ const CustomerDetail = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Outstanding Amount</label>
+                  <label className="block text-sm font-medium text-gray-700">AOD Amount</label>
                   <p className="mt-1 text-sm font-semibold text-gray-900">MUR {existingAOD.outstanding_amount?.toLocaleString()}</p>
                 </div>
 
@@ -871,6 +973,109 @@ const CustomerDetail = () => {
               </div>
             )}
           </div>
+
+          {/* AOD History */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">AOD History</h3>
+              {aodHistory.length > 0 && (
+                <span className="text-sm text-gray-500">
+                  {aodHistory.length} agreement{aodHistory.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {aodHistoryLoading ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mx-auto"></div>
+                <p className="text-sm text-gray-500 mt-2">Loading AOD history...</p>
+              </div>
+            ) : aodHistory.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {aodHistory.map((aod) => (
+                  <div key={aod.id} className="border-l-4 border-red-200 pl-3 py-2 bg-red-50 rounded-r">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-gray-900">
+                        AOD #{aod.id} - MUR {aod.outstanding_amount?.toLocaleString()}
+                      </span>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        aod.status === 'active' ? 'bg-green-100 text-green-800' :
+                        aod.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        aod.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {aod.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-gray-600 mb-2">
+                      <p>📅 Created: {new Date(aod.agreement_date || aod.created_at).toLocaleDateString()} {new Date(aod.agreement_date || aod.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p>👤 By: {aod.agentName}</p>
+                      <p>💳 Method: {aod.payment_method?.replace('_', ' ')}</p>
+                      {aod.signature_status && (
+                        <p>✍️ Signature: {aod.signature_status.replace('_', ' ')}</p>
+                      )}
+                      {aod.signed_document && (
+                        <p className="text-green-700 font-medium">
+                          📎 Signed copy: 
+                          <a 
+                            href={typeof aod.signed_document === 'string' ? aod.signed_document : aod.signed_document.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-700 ml-1 underline"
+                          >
+                            View Document
+                          </a>
+                          {(aod.signed_document_uploaded_at || aod.signature_received_date) && (
+                            <span className="text-gray-500 ml-1">
+                              (Uploaded {new Date(aod.signed_document_uploaded_at || aod.signature_received_date).toLocaleDateString()})
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      <button
+                        onClick={() => handleDownloadAODFromHistory(aod)}
+                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        📄 PDF
+                      </button>
+                      {aod.payment_method === 'installments' && (
+                        <button
+                          onClick={() => handleViewInstallments(aod)}
+                          className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                        >
+                          📊 Installments
+                        </button>
+                      )}
+                      {aod.signature_status === 'pending_signature' && aod.status === 'active' && (
+                        <button
+                          onClick={() => handleMarkAsReceived(aod)}
+                          className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          ✅ Mark Received
+                        </button>
+                      )}
+                      {aod.status === 'active' && (
+                        <button
+                          onClick={() => handleCancelAOD(aod)}
+                          className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          ❌ Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 text-center py-4">
+                No AOD history available
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -987,6 +1192,18 @@ const CustomerDetail = () => {
         isOpen={showAODModal}
         onClose={() => setShowAODModal(false)}
         customer={customer}
+      />
+
+      {/* Mark AOD as Received Modal */}
+      <MarkAODReceivedModal
+        isOpen={showMarkReceivedModal}
+        onClose={() => {
+          setShowMarkReceivedModal(false)
+          setSelectedAODForUpload(null)
+        }}
+        aod={selectedAODForUpload}
+        onSubmit={handleUploadSignedDocument}
+        isLoading={uploadingDocument}
       />
     </div>
   )

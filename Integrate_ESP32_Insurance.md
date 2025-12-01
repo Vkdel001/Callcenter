@@ -1,4 +1,4 @@
-# ESP32 Payment Terminal Integration
+   # ESP32 Payment Terminal Integration
 ## Strategic Implementation Guide for NIC Life Insurance
 
 ---

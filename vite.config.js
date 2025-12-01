@@ -37,7 +37,14 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
-    open: true
+    open: true,
+    proxy: {
+      '/api/upload-aod': {
+        target: 'https://payments.niclmauritius.site',
+        changeOrigin: true,
+        secure: true
+      }
+    }
   },
   build: {
     outDir: 'dist',

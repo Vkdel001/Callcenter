@@ -34,6 +34,7 @@ const CustomerDetail = () => {
   const [showMarkReceivedModal, setShowMarkReceivedModal] = useState(false)
   const [selectedAODForUpload, setSelectedAODForUpload] = useState(null)
   const [uploadingDocument, setUploadingDocument] = useState(false)
+  const [downloadingDocId, setDownloadingDocId] = useState(null)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
@@ -1018,16 +1019,61 @@ const CustomerDetail = () => {
                       {aod.signed_document && (
                         <p className="text-green-700 font-medium">
                           📎 Signed copy: 
-                          <a 
-                            href={typeof aod.signed_document === 'string' ? aod.signed_document : aod.signed_document.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-700 ml-1 underline"
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const url = typeof aod.signed_document === 'string' 
+                                ? aod.signed_document 
+                                : aod.signed_document.url;
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                            className="text-blue-600 hover:text-blue-700 ml-1 underline cursor-pointer bg-transparent border-none text-xs"
                           >
-                            View Document
-                          </a>
+                            View
+                          </button>
+                          <span className="text-gray-400 mx-1">|</span>
+                          <button
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              const url = typeof aod.signed_document === 'string' 
+                                ? aod.signed_document 
+                                : aod.signed_document.url;
+                              
+                              setDownloadingDocId(aod.id);
+                              try {
+                                // Fetch the file as blob
+                                const response = await fetch(url);
+                                if (!response.ok) throw new Error('Download failed');
+                                
+                                const blob = await response.blob();
+                                
+                                // Create download link
+                                const downloadUrl = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = `AOD_${aod.id}_signed.pdf`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                
+                                // Clean up
+                                setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 100);
+                              } catch (error) {
+                                console.error('Download failed:', error);
+                                alert('Download failed. Opening in new tab instead.');
+                                // Fallback: open in new tab
+                                window.open(url, '_blank');
+                              } finally {
+                                setDownloadingDocId(null);
+                              }
+                            }}
+                            disabled={downloadingDocId === aod.id}
+                            className="text-blue-600 hover:text-blue-700 underline cursor-pointer bg-transparent border-none text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {downloadingDocId === aod.id ? 'Downloading...' : 'Download'}
+                          </button>
                           {(aod.signed_document_uploaded_at || aod.signature_received_date) && (
-                            <span className="text-gray-500 ml-1">
+                            <span className="text-gray-500 ml-1 text-xs">
                               (Uploaded {new Date(aod.signed_document_uploaded_at || aod.signature_received_date).toLocaleDateString()})
                             </span>
                           )}

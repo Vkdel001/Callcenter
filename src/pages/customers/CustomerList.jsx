@@ -10,6 +10,8 @@ const CustomerList = () => {
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 50
 
   // For internal agents, fetch ALL branch customers; for others, fetch assigned customers
   const { data: customers = [], isLoading } = useQuery(
@@ -42,6 +44,23 @@ const CustomerList = () => {
       return (b.amountDue || 0) - (a.amountDue || 0)
     })
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const endIndex = startIndex + ITEMS_PER_PAGE
+  const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex)
+
+  // Reset to page 1 when search/filter changes
+  const handleSearchChange = (value) => {
+    setSearchTerm(value)
+    setCurrentPage(1)
+  }
+
+  const handleFilterChange = (value) => {
+    setStatusFilter(value)
+    setCurrentPage(1)
+  }
+
   const getStatusBadge = (status) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800',
@@ -70,7 +89,8 @@ const CustomerList = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Customer List</h1>
         <div className="text-sm text-gray-600">
-          {filteredCustomers.length} of {customers.length} customers
+          Showing {startIndex + 1}-{Math.min(endIndex, filteredCustomers.length)} of {filteredCustomers.length} customers
+          {filteredCustomers.length !== customers.length && ` (filtered from ${customers.length})`}
         </div>
       </div>
 
@@ -84,7 +104,7 @@ const CustomerList = () => {
                 type="search"
                 placeholder="Search customers..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-base"
               />
             </div>
@@ -92,7 +112,7 @@ const CustomerList = () => {
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(e.target.value)}
             className="mobile-full-width px-4 py-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-base"
           >
             <option value="all">All Status</option>
@@ -134,7 +154,7 @@ const CustomerList = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCustomers.map((customer) => (
+              {paginatedCustomers.map((customer) => (
                 <tr key={customer.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
@@ -179,8 +199,8 @@ const CustomerList = () => {
       </div>
 
       {/* Mobile Cards - Shown on Mobile Only */}
-      <div className="mobile-cards block md:hidden space-y-4" style={{ maxHeight: user?.agent_type === 'internal' ? '600px' : 'none', overflowY: user?.agent_type === 'internal' ? 'auto' : 'visible' }}>
-        {filteredCustomers.map((customer) => (
+      <div className="mobile-cards block md:hidden space-y-4">
+        {paginatedCustomers.map((customer) => (
           <div key={customer.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 customer-item">
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1">
@@ -238,11 +258,77 @@ const CustomerList = () => {
         ))}
       </div>
 
-      {/* No customers message for mobile cards */}
+      {/* No customers message */}
       {filteredCustomers.length === 0 && (
-        <div className="mobile-cards block md:hidden">
-          <div className="text-center py-12">
-            <p className="text-gray-500">No customers found matching your criteria.</p>
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <p className="text-gray-500">No customers found matching your criteria.</p>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredCustomers.length > 0 && totalPages > 1 && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* Page info */}
+            <div className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
+            </div>
+
+            {/* Pagination buttons */}
+            <div className="flex items-center gap-2">
+              {/* Previous button */}
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+
+              {/* Page numbers */}
+              <div className="hidden md:flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 rounded-md text-sm font-medium ${
+                        currentPage === pageNum
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+
+            {/* Items per page info */}
+            <div className="text-sm text-gray-600">
+              {ITEMS_PER_PAGE} per page
+            </div>
           </div>
         </div>
       )}

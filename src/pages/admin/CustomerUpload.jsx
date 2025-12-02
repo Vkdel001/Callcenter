@@ -143,23 +143,28 @@ const CustomerUpload = () => {
           // Field doesn't exist, skip
         }
         
-        const existingCustomer = existingPolicyMap.get(customer.policy_number)
+        // Check if this policy+month combination already exists
+        const policyMonthKey = `${customer.policy_number}|${customer.assigned_month || 'Unknown'}`
+        const existingCustomer = existingPolicyMonthMap.get(policyMonthKey)
         
         if (existingCustomer) {
-          // UPDATE existing customer
+          // UPDATE existing customer (same policy + same month)
           const updatePayload = { ...payload }
           
           try {
             updatePayload.update_count = (existingCustomer.update_count || 0) + 1
+            updatePayload.last_updated = new Date().toISOString()
           } catch (e) {
-            // Field doesn't exist, skip
+            // Fields don't exist, skip
           }
           
+          // Check if contact info changed
           const contactChanged = 
             existingCustomer.email !== payload.email ||
             existingCustomer.mobile !== payload.mobile
           
           if (contactChanged) {
+            // Reset assignment if contact changed
             updatePayload.assignment_status = 'available'
             updatePayload.assigned_agent = null
           }
@@ -167,7 +172,7 @@ const CustomerUpload = () => {
           await customerApi.patch(`/nic_cc_customer/${existingCustomer.id}`, updatePayload)
           results.updated++
         } else {
-          // CREATE new customer
+          // CREATE new customer (new policy+month combination)
           await customerApi.post('/nic_cc_customer', payload)
           results.created++
         }
@@ -234,8 +239,13 @@ const CustomerUpload = () => {
       const existingCustomersResponse = await customerApi.get('/nic_cc_customer')
       const existingCustomers = existingCustomersResponse.data || []
       
-      const existingPolicyMap = new Map(
-        existingCustomers.map(customer => [customer.policy_number, customer])
+      // Create a map using policy_number + assigned_month as the unique key
+      // This allows the same policy to exist for different months
+      const existingPolicyMonthMap = new Map(
+        existingCustomers.map(customer => {
+          const key = `${customer.policy_number}|${customer.assigned_month || 'Unknown'}`
+          return [key, customer]
+        })
       )
       
       // Create batches
@@ -263,7 +273,7 @@ const CustomerUpload = () => {
           skipped: results.skipped
         })
         
-        await processBatch(batch, existingPolicyMap, results)
+        await processBatch(batch, existingPolicyMonthMap, results)
         
         // Delay between batches to avoid rate limiting
         if (batchIndex < batches.length - 1) {

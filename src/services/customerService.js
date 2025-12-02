@@ -770,6 +770,35 @@ NIC Life Insurance Mauritius`
     }
   },
 
+  // Helper function to normalize month format to "Mon-YY"
+  normalizeMonthFormat(monthStr) {
+    if (!monthStr || monthStr === 'Unknown') return monthStr
+    
+    // Handle different formats: "2024-11", "Nov-25", "25-Nov", "2024-10", "Oct-25"
+    if (monthStr.includes('-')) {
+      const parts = monthStr.split('-')
+      
+      // Format: "2024-11" -> "Nov-24"
+      if (parts[0].length === 4 && !isNaN(parts[0])) {
+        const year = parts[0]
+        const monthNum = parseInt(parts[1])
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        return `${monthNames[monthNum - 1]}-${year.slice(-2)}`
+      }
+      
+      // Format: "25-Nov" -> "Nov-25"
+      if (!isNaN(parts[0]) && isNaN(parts[1])) {
+        return `${parts[1]}-${parts[0]}`
+      }
+      
+      // Already in format "Nov-25"
+      return monthStr
+    }
+    
+    return monthStr
+  },
+
   async getSalesAgentLOBSummary(salesAgentId) {
     try {
       console.log('Getting LOB summary for sales agent:', salesAgentId)
@@ -794,7 +823,8 @@ NIC Life Insurance Mauritius`
 
       salesAgentCustomers.forEach(customer => {
         const lob = customer.line_of_business || 'life'
-        const month = customer.assigned_month || 'Unknown'
+        const rawMonth = customer.assigned_month || 'Unknown'
+        const month = this.normalizeMonthFormat(rawMonth)  // Normalize month format
         const amount = parseFloat(customer.amount_due) || 0
 
         // Update LOB totals
@@ -841,11 +871,11 @@ NIC Life Insurance Mauritius`
       const customersResponse = await customerApi.get('/nic_cc_customer')
       const allCustomers = customersResponse.data || []
 
-      // Filter customers by sales agent, LOB, and month
+      // Filter customers by sales agent, LOB, and month (normalize month for comparison)
       const filteredCustomers = allCustomers.filter(customer => 
         customer.sales_agent_id === salesAgentId &&
         customer.line_of_business === lob &&
-        customer.assigned_month === month
+        this.normalizeMonthFormat(customer.assigned_month) === month
       )
 
       console.log(`Found ${filteredCustomers.length} customers for ${lob} - ${month}`)
@@ -911,7 +941,8 @@ NIC Life Insurance Mauritius`
 
       csrAccessibleCustomers.forEach(customer => {
         const lob = customer.line_of_business || 'life'
-        const month = customer.assigned_month || 'Unknown'
+        const rawMonth = customer.assigned_month || 'Unknown'
+        const month = this.normalizeMonthFormat(rawMonth)  // Normalize month format
         const amount = parseFloat(customer.amount_due) || 0
 
         // Update LOB totals
@@ -961,7 +992,7 @@ NIC Life Insurance Mauritius`
       // Filter for CSR: specific LOB + month, exclude branch 6 (call center exclusive)
       const filteredCustomers = allCustomers.filter(customer => 
         customer.line_of_business === lob &&
-        customer.assigned_month === month &&
+        this.normalizeMonthFormat(customer.assigned_month) === month &&
         customer.branch_id !== 6  // Exclude call center exclusive data
       )
 

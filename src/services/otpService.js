@@ -31,7 +31,10 @@ class OTPService {
       'csr.curepipe@nic.mu',
       'csr.flacq@nic.mu',
       'csr.mahebourg@nic.mu',
-      'csr.rosehill@nic.mu'
+      'csr.rosehill@nic.mu',
+      // Special users with fixed OTP
+      'fjeetoo@nicl.mu',        // Fixed OTP: 123456
+      'csr.farzana@nicl.mu'     // Fixed OTP: 123456
     ]
     return testEmails.includes(email) || email.includes('.test@') || email.includes('test@') || email.includes('.admin@') || email.includes('csr.')
   }

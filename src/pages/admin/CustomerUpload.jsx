@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { customerApi } from '../../services/apiClient'
 import { useAuth } from '../../contexts/AuthContext'
-import { Upload, FileText, CheckCircle, AlertCircle, Download, Shield } from 'lucide-react'
+import { Upload, FileText, CheckCircle, AlertCircle, Download, Shield, Loader } from 'lucide-react'
+
+// Configuration for batch processing
+const BATCH_SIZE = 50           // Records per batch
+const BATCH_DELAY = 500         // Milliseconds between batches
+const RETRY_ATTEMPTS = 2        // Retry failed records
+const RETRY_DELAY = 1000        // Wait before retry
 
 const CustomerUpload = () => {
   const { user } = useAuth()
@@ -10,6 +16,7 @@ const CustomerUpload = () => {
   const [uploadResults, setUploadResults] = useState(null)
   const [errors, setErrors] = useState([])
   const [testResult, setTestResult] = useState(null)
+  const [uploadProgress, setUploadProgress] = useState(null)
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0]
@@ -45,45 +52,145 @@ const CustomerUpload = () => {
     const errors = []
     
     if (!customer.policy_number) {
-      errors.push(`Row ${index + 2}: Policy number is required`)
+      errors.push(`Policy number is required`)
     }
     
     if (!customer.name) {
-      errors.push(`Row ${index + 2}: Name is required`)
+      errors.push(`Name is required`)
     }
     
     if (!customer.mobile) {
-      errors.push(`Row ${index + 2}: Mobile is required`)
+      errors.push(`Mobile is required`)
     }
     
     if (!customer.email || !customer.email.includes('@')) {
-      errors.push(`Row ${index + 2}: Valid email is required`)
+      errors.push(`Valid email is required`)
     }
     
     if (!customer.amount_due || isNaN(customer.amount_due)) {
-      errors.push(`Row ${index + 2}: Valid amount due is required`)
+      errors.push(`Valid amount due is required`)
     }
 
     // NEW: LOB validation - admin can only upload data matching their LOB
     if (user?.admin_lob && user.admin_lob !== 'super_admin') {
       if (!customer.line_of_business) {
-        errors.push(`Row ${index + 2}: Line of business is required`)
+        errors.push(`Line of business is required`)
       } else if (customer.line_of_business !== user.admin_lob) {
-        errors.push(`Row ${index + 2}: ${user.admin_lob.toUpperCase()} Admin cannot upload ${customer.line_of_business} data. Policy: ${customer.policy_number}`)
+        errors.push(`${user.admin_lob.toUpperCase()} Admin cannot upload ${customer.line_of_business} data`)
       }
     }
 
     // Validate line_of_business values
     if (customer.line_of_business && !['life', 'health', 'motor'].includes(customer.line_of_business)) {
-      errors.push(`Row ${index + 2}: Line of business must be 'life', 'health', or 'motor'`)
+      errors.push(`Line of business must be 'life', 'health', or 'motor'`)
     }
 
     // Validate branch_id if provided
     if (customer.branch_id && isNaN(customer.branch_id)) {
-      errors.push(`Row ${index + 2}: Branch ID must be a number`)
+      errors.push(`Branch ID must be a number`)
     }
     
-    return errors
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    }
+  }
+
+  // Helper function to delay execution
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  // Process customers in batches
+  const processBatch = async (batch, existingPolicyMap, results) => {
+    for (const { customer, index } of batch) {
+      try {
+        // Validate customer
+        const validation = validateCustomer(customer, index)
+        
+        if (!validation.isValid) {
+          // Skip invalid records but don't stop upload
+          results.skipped++
+          results.errors.push({
+            row: index + 2,
+            policy: customer.policy_number || 'Unknown',
+            reason: validation.errors.join(', ')
+          })
+          continue
+        }
+
+        const payload = {
+          policy_number: customer.policy_number,
+          name: customer.name,
+          mobile: customer.mobile,
+          email: customer.email,
+          amount_due: parseFloat(customer.amount_due),
+          status: customer.status || 'pending',
+          last_call_date: customer.last_call_date ? customer.last_call_date : '2025-01-20',
+          total_attempts: parseInt(customer.total_attempts) || 0,
+          sales_agent_id: customer.sales_agent_id || null,
+          line_of_business: customer.line_of_business || (user?.admin_lob !== 'super_admin' ? user?.admin_lob : 'life'),
+          assigned_month: customer.assigned_month || null,
+          title_owner1: customer.title_owner1 || null,
+          title_owner2: customer.title_owner2 || null,
+          name_owner2: customer.name_owner2 || null,
+          address: customer.address || null,
+          national_id: customer.national_id || null,
+          branch_id: customer.branch_id ? parseInt(customer.branch_id) : null
+        }
+        
+        try {
+          payload.last_updated = new Date().toISOString()
+        } catch (e) {
+          // Field doesn't exist, skip
+        }
+        
+        const existingCustomer = existingPolicyMap.get(customer.policy_number)
+        
+        if (existingCustomer) {
+          // UPDATE existing customer
+          const updatePayload = { ...payload }
+          
+          try {
+            updatePayload.update_count = (existingCustomer.update_count || 0) + 1
+          } catch (e) {
+            // Field doesn't exist, skip
+          }
+          
+          const contactChanged = 
+            existingCustomer.email !== payload.email ||
+            existingCustomer.mobile !== payload.mobile
+          
+          if (contactChanged) {
+            updatePayload.assignment_status = 'available'
+            updatePayload.assigned_agent = null
+          }
+          
+          await customerApi.patch(`/nic_cc_customer/${existingCustomer.id}`, updatePayload)
+          results.updated++
+        } else {
+          // CREATE new customer
+          await customerApi.post('/nic_cc_customer', payload)
+          results.created++
+        }
+        
+        results.successful++
+      } catch (error) {
+        // Don't stop on error, just log it
+        results.failed++
+        
+        let errorMessage = error.message
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message
+        } else if (error.response?.data) {
+          errorMessage = JSON.stringify(error.response.data).substring(0, 100)
+        }
+        
+        results.errors.push({
+          row: index + 2,
+          policy: customer.policy_number || 'Unknown',
+          reason: errorMessage
+        })
+      }
+    }
   }
 
   const handleUpload = async () => {
@@ -91,130 +198,95 @@ const CustomerUpload = () => {
 
     setIsUploading(true)
     setErrors([])
+    setUploadProgress(null)
+    setUploadResults(null)
     
     try {
       const csvText = await file.text()
       const customers = parseCSV(csvText)
       
-      // Validate all customers
-      const validationErrors = []
-      customers.forEach((customer, index) => {
-        const customerErrors = validateCustomer(customer, index)
-        validationErrors.push(...customerErrors)
-      })
-      
-      if (validationErrors.length > 0) {
-        setErrors(validationErrors)
+      if (customers.length === 0) {
+        setErrors(['No valid data found in CSV file'])
         setIsUploading(false)
         return
       }
       
-      // Smart upsert - check existing customers first
+      // Initialize results
       const results = {
         total: customers.length,
         successful: 0,
         failed: 0,
+        skipped: 0,
         updated: 0,
         created: 0,
-        errors: []
+        errors: [],
+        startTime: Date.now()
       }
       
       // Get all existing customers to check for duplicates
+      setUploadProgress({
+        phase: 'Fetching existing customers...',
+        current: 0,
+        total: customers.length,
+        percentage: 0
+      })
+      
       const existingCustomersResponse = await customerApi.get('/nic_cc_customer')
       const existingCustomers = existingCustomersResponse.data || []
-      console.log('Found existing customers:', existingCustomers.length)
       
       const existingPolicyMap = new Map(
         existingCustomers.map(customer => [customer.policy_number, customer])
       )
-      console.log('Policy map created with', existingPolicyMap.size, 'entries')
       
-      for (const customer of customers) {
-        try {
-          const payload = {
-            policy_number: customer.policy_number,
-            name: customer.name,
-            mobile: customer.mobile,
-            email: customer.email,
-            amount_due: parseFloat(customer.amount_due),
-            status: customer.status || 'pending',
-            last_call_date: customer.last_call_date ? customer.last_call_date : '2025-01-20',
-            total_attempts: parseInt(customer.total_attempts) || 0,
-            // NEW: Add all new fields
-            sales_agent_id: customer.sales_agent_id || null,
-            line_of_business: customer.line_of_business || (user?.admin_lob !== 'super_admin' ? user?.admin_lob : 'life'),
-            assigned_month: customer.assigned_month || null,
-            title_owner1: customer.title_owner1 || null,
-            title_owner2: customer.title_owner2 || null,
-            name_owner2: customer.name_owner2 || null,
-            address: customer.address || null,
-            national_id: customer.national_id || null,
-            branch_id: customer.branch_id ? parseInt(customer.branch_id) : null
-          }
-          
-          // Try to add new fields, but don't fail if they don't exist
-          try {
-            payload.last_updated = new Date().toISOString()
-          } catch (e) {
-            console.log('last_updated field not available')
-          }
-          
-          const existingCustomer = existingPolicyMap.get(customer.policy_number)
-          console.log('Checking policy:', customer.policy_number, 'Found existing:', !!existingCustomer)
-          
-          if (existingCustomer) {
-            // UPDATE existing customer
-            const updatePayload = { ...payload }
-            
-            // Try to add update_count if field exists
-            try {
-              updatePayload.update_count = (existingCustomer.update_count || 0) + 1
-            } catch (e) {
-              console.log('update_count field not available')
-            }
-            
-            // Check if contact info changed - reset assignment if so
-            const contactChanged = 
-              existingCustomer.email !== payload.email ||
-              existingCustomer.mobile !== payload.mobile
-            
-            if (contactChanged) {
-              updatePayload.assignment_status = 'available'
-              updatePayload.assigned_agent = null
-            }
-            
-            console.log('Updating existing customer:', payload.policy_number, 'ID:', existingCustomer.id)
-            const response = await customerApi.patch(`/nic_cc_customer/${existingCustomer.id}`, updatePayload)
-            console.log('Update successful:', response.data)
-            results.updated++
-          } else {
-            // CREATE new customer
-            console.log('Creating new customer:', payload.policy_number)
-            const response = await customerApi.post('/nic_cc_customer', payload)
-            console.log('Create successful:', response.data)
-            results.created++
-          }
-          
-          results.successful++
-        } catch (error) {
-          console.error('Upload failed for customer:', customer.policy_number)
-          console.error('Error details:', error.response?.data)
-          console.error('Payload sent:', payload)
-          results.failed++
-          
-          let errorMessage = error.message
-          if (error.response?.data?.message) {
-            errorMessage = error.response.data.message
-          } else if (error.response?.data) {
-            errorMessage = JSON.stringify(error.response.data)
-          }
-          
-          results.errors.push(`${customer.policy_number}: ${errorMessage}`)
+      // Create batches
+      const batches = []
+      for (let i = 0; i < customers.length; i += BATCH_SIZE) {
+        const batch = customers.slice(i, i + BATCH_SIZE).map((customer, idx) => ({
+          customer,
+          index: i + idx
+        }))
+        batches.push(batch)
+      }
+      
+      // Process batches with progress tracking
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex]
+        const batchStart = batchIndex * BATCH_SIZE
+        
+        setUploadProgress({
+          phase: 'Uploading customers...',
+          current: batchStart,
+          total: customers.length,
+          percentage: Math.round((batchStart / customers.length) * 100),
+          successful: results.successful,
+          failed: results.failed,
+          skipped: results.skipped
+        })
+        
+        await processBatch(batch, existingPolicyMap, results)
+        
+        // Delay between batches to avoid rate limiting
+        if (batchIndex < batches.length - 1) {
+          await delay(BATCH_DELAY)
         }
       }
       
+      // Final progress update
+      setUploadProgress({
+        phase: 'Complete!',
+        current: customers.length,
+        total: customers.length,
+        percentage: 100,
+        successful: results.successful,
+        failed: results.failed,
+        skipped: results.skipped
+      })
+      
+      results.duration = Math.round((Date.now() - results.startTime) / 1000)
       setUploadResults(results)
+      
     } catch (error) {
+      console.error('Upload error:', error)
       setErrors([`Failed to process CSV file: ${error.message}`])
     } finally {
       setIsUploading(false)
@@ -391,30 +463,113 @@ ${adminLOB.toUpperCase()}-003,Bob Johnson,57111003,bob@example.com,7500.25,pendi
             </div>
           )}
 
+          {uploadProgress && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+              <div className="flex items-center mb-3">
+                <Loader className="h-5 w-5 text-blue-600 animate-spin mr-2" />
+                <h3 className="text-sm font-medium text-blue-800">
+                  {uploadProgress.phase}
+                </h3>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-4 mb-3">
+                <div
+                  className="bg-blue-600 h-4 rounded-full transition-all duration-300 flex items-center justify-center text-xs text-white font-medium"
+                  style={{ width: `${uploadProgress.percentage}%` }}
+                >
+                  {uploadProgress.percentage}%
+                </div>
+              </div>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div className="bg-white rounded p-2">
+                  <div className="text-gray-600">Processed</div>
+                  <div className="text-lg font-bold text-gray-900">
+                    {uploadProgress.current} / {uploadProgress.total}
+                  </div>
+                </div>
+                <div className="bg-green-100 rounded p-2">
+                  <div className="text-green-700">Successful</div>
+                  <div className="text-lg font-bold text-green-900">
+                    {uploadProgress.successful || 0}
+                  </div>
+                </div>
+                <div className="bg-red-100 rounded p-2">
+                  <div className="text-red-700">Failed</div>
+                  <div className="text-lg font-bold text-red-900">
+                    {uploadProgress.failed || 0}
+                  </div>
+                </div>
+                <div className="bg-yellow-100 rounded p-2">
+                  <div className="text-yellow-700">Skipped</div>
+                  <div className="text-lg font-bold text-yellow-900">
+                    {uploadProgress.skipped || 0}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {uploadResults && (
             <div className="bg-green-50 border border-green-200 rounded-md p-4">
               <div className="flex">
                 <CheckCircle className="h-5 w-5 text-green-400" />
-                <div className="ml-3">
+                <div className="ml-3 flex-1">
                   <h3 className="text-sm font-medium text-green-800">
-                    Upload Complete
+                    Upload Complete ({uploadResults.duration}s)
                   </h3>
-                  <div className="mt-2 text-sm text-green-700">
-                    <p>Total: {uploadResults.total}</p>
-                    <p>Successful: {uploadResults.successful}</p>
-                    <p>Failed: {uploadResults.failed}</p>
-                    
-                    {uploadResults.errors.length > 0 && (
-                      <div className="mt-2">
-                        <p className="font-medium">Errors:</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                          {uploadResults.errors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                  <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                    <div className="bg-white rounded p-2">
+                      <div className="text-gray-600">Total</div>
+                      <div className="text-lg font-bold">{uploadResults.total}</div>
+                    </div>
+                    <div className="bg-green-100 rounded p-2">
+                      <div className="text-green-700">Successful</div>
+                      <div className="text-lg font-bold text-green-900">{uploadResults.successful}</div>
+                    </div>
+                    <div className="bg-blue-100 rounded p-2">
+                      <div className="text-blue-700">Created</div>
+                      <div className="text-lg font-bold text-blue-900">{uploadResults.created}</div>
+                    </div>
+                    <div className="bg-purple-100 rounded p-2">
+                      <div className="text-purple-700">Updated</div>
+                      <div className="text-lg font-bold text-purple-900">{uploadResults.updated}</div>
+                    </div>
+                    <div className="bg-yellow-100 rounded p-2">
+                      <div className="text-yellow-700">Skipped</div>
+                      <div className="text-lg font-bold text-yellow-900">{uploadResults.skipped}</div>
+                    </div>
                   </div>
+                    
+                  {uploadResults.errors.length > 0 && (
+                    <div className="mt-4">
+                      <p className="font-medium text-red-800 mb-2">
+                        Failed/Skipped Records ({uploadResults.errors.length}):
+                      </p>
+                      <div className="bg-white rounded border border-red-200 max-h-60 overflow-y-auto">
+                        <table className="min-w-full text-xs">
+                          <thead className="bg-red-50 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left">Row</th>
+                              <th className="px-3 py-2 text-left">Policy</th>
+                              <th className="px-3 py-2 text-left">Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {uploadResults.errors.map((error, index) => (
+                              <tr key={index} className="border-t border-red-100">
+                                <td className="px-3 py-2">{error.row}</td>
+                                <td className="px-3 py-2 font-mono">{error.policy}</td>
+                                <td className="px-3 py-2 text-red-700">{error.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -11,21 +11,36 @@ const CustomerList = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
+  // For internal agents, fetch ALL branch customers; for others, fetch assigned customers
   const { data: customers = [], isLoading } = useQuery(
-    ['customers', user?.id],
-    () => customerService.getAssignedCustomers(user?.id),
+    ['customers', user?.id, user?.agent_type],
+    async () => {
+      if (user?.agent_type === 'internal') {
+        // Internal agents: Get ALL customers from their branch
+        return customerService.getAllBranchCustomers(user?.id)
+      } else {
+        // Call center agents: Get assigned customers only
+        return customerService.getAssignedCustomers(user?.id)
+      }
+    },
     { enabled: !!user?.id }
   )
 
-  const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.policyNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.mobile.includes(searchTerm)
+  // Sort and filter customers
+  const filteredCustomers = customers
+    .filter(customer => {
+      const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.policyNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.mobile.includes(searchTerm)
 
-    const matchesStatus = statusFilter === 'all' || customer.status === statusFilter
+      const matchesStatus = statusFilter === 'all' || customer.status === statusFilter
 
-    return matchesSearch && matchesStatus
-  })
+      return matchesSearch && matchesStatus
+    })
+    .sort((a, b) => {
+      // Sort by amount due (descending - highest first)
+      return (b.amountDue || 0) - (a.amountDue || 0)
+    })
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -91,7 +106,7 @@ const CustomerList = () => {
 
       {/* Desktop Table - Hidden on Mobile */}
       <div className="bg-white rounded-lg shadow overflow-hidden desktop-table hidden md:block">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" style={{ maxHeight: user?.agent_type === 'internal' ? '600px' : 'none', overflowY: user?.agent_type === 'internal' ? 'auto' : 'visible' }}>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -164,7 +179,7 @@ const CustomerList = () => {
       </div>
 
       {/* Mobile Cards - Shown on Mobile Only */}
-      <div className="mobile-cards block md:hidden space-y-4">
+      <div className="mobile-cards block md:hidden space-y-4" style={{ maxHeight: user?.agent_type === 'internal' ? '600px' : 'none', overflowY: user?.agent_type === 'internal' ? 'auto' : 'visible' }}>
         {filteredCustomers.map((customer) => (
           <div key={customer.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 customer-item">
             <div className="flex justify-between items-start mb-3">

@@ -98,8 +98,6 @@ export const customerService = {
         )
       }
 
-      console.log('Retrieved assigned customers:', assignedCustomers.length)
-
       // Transform to frontend format
       return assignedCustomers.map(customer => ({
         id: customer.id,
@@ -110,10 +108,60 @@ export const customerService = {
         amountDue: customer.amount_due,
         status: customer.status,
         lastCallDate: customer.last_call_date,
-        attempts: customer.total_attempts || 0
+        attempts: customer.total_attempts || 0,
+        branchId: customer.branch_id,
+        salesAgentId: customer.sales_agent_id,
+        lineOfBusiness: customer.line_of_business
       }))
     } catch (error) {
       console.error('Failed to get assigned customers:', error)
+      return []
+    }
+  },
+
+  // NEW: Get ALL branch customers for internal agents (not just assigned)
+  async getAllBranchCustomers(agentId) {
+    try {
+      const [customersResponse, agentsResponse] = await Promise.all([
+        customerApi.get('/nic_cc_customer'),
+        agentApi.get('/nic_cc_agent')
+      ])
+      
+      const allCustomers = customersResponse.data || []
+      const currentAgent = agentsResponse.data?.find(agent => agent.id === agentId)
+
+      if (!currentAgent) {
+        console.error('Agent not found:', agentId)
+        return []
+      }
+
+      // For internal agents, return ALL customers from their branch
+      let branchCustomers = allCustomers
+      
+      if (currentAgent.agent_type === 'internal' && currentAgent.branch_id) {
+        branchCustomers = allCustomers.filter(customer => 
+          customer.branch_id === currentAgent.branch_id
+        )
+        console.log(`Internal agent ${agentId}: ${branchCustomers.length} customers in branch ${currentAgent.branch_id}`)
+      }
+
+      // Transform to frontend format
+      return branchCustomers.map(customer => ({
+        id: customer.id,
+        policyNumber: customer.policy_number,
+        name: customer.name,
+        mobile: customer.mobile,
+        email: customer.email,
+        amountDue: customer.amount_due,
+        status: customer.status,
+        lastCallDate: customer.last_call_date,
+        attempts: customer.total_attempts || 0,
+        branchId: customer.branch_id,
+        salesAgentId: customer.sales_agent_id,
+        lineOfBusiness: customer.line_of_business
+      }))
+    } catch (error) {
+      console.error('Failed to get all branch customers:', error)
       return []
     }
   },

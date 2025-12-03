@@ -16,6 +16,7 @@ import { signatureReminderService } from '../../services/signatureReminderServic
 import UpdateContactModal from '../../components/modals/UpdateContactModal'
 import contactUpdateService from '../../services/contactUpdateService'
 import MarkAODReceivedModal from '../../components/modals/MarkAODReceivedModal'
+import ContactUpdateHistory from '../../components/customer/ContactUpdateHistory'
 
 const CustomerDetail = () => {
   const { id } = useParams()
@@ -974,6 +975,9 @@ const CustomerDetail = () => {
               </div>
             )}
           </div>
+
+          {/* Contact Update History */}
+          <ContactUpdateHistory customerId={id} />
 
           {/* AOD History */}
           <div className="bg-white rounded-lg shadow p-6">

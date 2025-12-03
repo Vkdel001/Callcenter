@@ -9,12 +9,13 @@ const ENDPOINT = `${XANO_BASE_URL}/api:${API_KEY}/nic_customer_contact_update`;
 
 class ContactUpdateService {
   /**
-   * Create a new contact update
+   * Create a new contact update AND update the actual customer record
    * @param {Object} updateData - Update information
    * @returns {Promise<Object>} Created update record
    */
   async createUpdate(updateData) {
     try {
+      // Step 1: Create audit record in nic_customer_contact_update
       const response = await fetch(ENDPOINT, {
         method: 'POST',
         headers: {
@@ -29,12 +30,75 @@ class ContactUpdateService {
       }
 
       const data = await response.json();
-      console.log('✓ Contact update created:', data.id);
+      console.log('✓ Contact update audit record created:', data.id);
+
+      // Step 2: Update the actual customer record in nic_cc_customer
+      try {
+        await this.applyUpdateToCustomer(updateData);
+        console.log('✓ Customer record updated successfully');
+      } catch (updateError) {
+        console.error('⚠️ Failed to update customer record:', updateError);
+        // Don't throw - audit record is created, update can be applied manually
+      }
+
       return data;
     } catch (error) {
       console.error('Error creating contact update:', error);
       throw error;
     }
+  }
+
+  /**
+   * Apply contact update to the actual customer record
+   * @param {Object} updateData - Update information
+   * @returns {Promise<void>}
+   */
+  async applyUpdateToCustomer(updateData) {
+    const CUSTOMER_API_KEY = import.meta.env.VITE_XANO_CUSTOMER_API;
+    const CUSTOMER_ENDPOINT = `${XANO_BASE_URL}/api:${CUSTOMER_API_KEY}/nic_cc_customer`;
+    
+    // Get customer ID (handle both direct ID and relationship object)
+    const customerId = updateData.customer?.id || updateData.customer;
+    
+    if (!customerId) {
+      throw new Error('Customer ID not found in update data');
+    }
+
+    // Build update payload with only changed fields
+    const customerUpdate = {};
+    
+    if (updateData.new_mobile) {
+      customerUpdate.mobile = updateData.new_mobile;
+    }
+    
+    if (updateData.new_email) {
+      customerUpdate.email = updateData.new_email;
+    }
+    
+    if (updateData.new_amount !== undefined && updateData.new_amount !== null) {
+      customerUpdate.amount_due = parseFloat(updateData.new_amount);
+    }
+
+    // Add metadata
+    customerUpdate.last_updated = new Date().toISOString();
+    customerUpdate.contact_updated_by = updateData.agent_name || 'System';
+    customerUpdate.contact_update_reason = updateData.update_reason;
+
+    // Apply update to customer record
+    const response = await fetch(`${CUSTOMER_ENDPOINT}/${customerId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(customerUpdate),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update customer record');
+    }
+
+    return await response.json();
   }
 
   /**

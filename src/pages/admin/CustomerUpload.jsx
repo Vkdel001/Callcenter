@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { customerApi } from '../../services/apiClient'
 import { useAuth } from '../../contexts/AuthContext'
 import { Upload, FileText, CheckCircle, AlertCircle, Download, Shield, Loader } from 'lucide-react'
+import { sanitizeCustomerData } from '../../utils/textSanitizer'
 
 // Configuration for batch processing
 const BATCH_SIZE = 50           // Records per batch
@@ -100,7 +101,7 @@ const CustomerUpload = () => {
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
   // Process customers in batches
-  const processBatch = async (batch, existingPolicyMap, results) => {
+  const processBatch = async (batch, existingPolicyMonthMap, results) => {
     for (const { customer, index } of batch) {
       try {
         // Validate customer
@@ -117,7 +118,7 @@ const CustomerUpload = () => {
           continue
         }
 
-        const payload = {
+        let payload = {
           policy_number: customer.policy_number,
           name: customer.name,
           mobile: customer.mobile,
@@ -136,6 +137,9 @@ const CustomerUpload = () => {
           national_id: customer.national_id || null,
           branch_id: customer.branch_id ? parseInt(customer.branch_id) : null
         }
+        
+        // Sanitize text fields to remove accents and special characters
+        payload = sanitizeCustomerData(payload)
         
         try {
           payload.last_updated = new Date().toISOString()

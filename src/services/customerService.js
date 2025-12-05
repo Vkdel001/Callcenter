@@ -741,14 +741,15 @@ NIC Life Insurance Mauritius`
     }
   },
 
-  async sendEmail(customer, qrCodeUrl, paymentLink) {
+  async sendEmail(customer, qrCodeUrl, paymentLink, options = {}) {
     const { emailService } = await import('./emailService')
 
     try {
       const result = await emailService.sendPaymentReminderEmail(
         customer,
         qrCodeUrl,
-        paymentLink
+        paymentLink,
+        options  // Pass options for template selection
       )
 
       if (result.success) {

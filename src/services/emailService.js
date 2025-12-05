@@ -15,11 +15,12 @@ class EmailService {
     textContent,
     attachments = [],
     templateId = null,
-    templateParams = {}
+    templateParams = {},
+    sender = null
   }) {
     try {
       const payload = {
-        sender: {
+        sender: sender || {
           name: import.meta.env.VITE_SENDER_NAME || 'Insurance Company',
           email: import.meta.env.VITE_SENDER_EMAIL || 'noreply@insurance.com'
         },
@@ -74,8 +75,21 @@ class EmailService {
     }
   }
 
-  async sendPaymentReminderEmail(customer, qrCodeUrl, paymentLink) {
+  // Get LOB-specific sender configuration
+  getSenderConfig(lob) {
+    const lobName = lob ? lob.charAt(0).toUpperCase() + lob.slice(1) : 'Life'
+    return {
+      name: `NIC ${lobName} Insurance`,
+      email: import.meta.env.VITE_SENDER_EMAIL || 'arrears@niclmauritius.site'
+    }
+  }
+
+  async sendPaymentReminderEmail(customer, qrCodeUrl, paymentLink, options = {}) {
     try {
+      const isNewPolicy = options.isNewPolicy || false
+      const lob = options.lineOfBusiness || 'life'
+      const referenceNumber = options.referenceNumber || customer.policyNumber || 'N/A'
+      
       // Convert QR code URL to base64 for inline attachment (better for Gmail)
       let qrBase64 = null;
       let attachments = [];
@@ -101,18 +115,35 @@ class EmailService {
         }
       }
       
-      const htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl)
-      const textContent = this.generatePaymentReminderText(customer, paymentLink)
+      // Get LOB-specific sender
+      const sender = this.getSenderConfig(lob)
+      const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
+      
+      // Choose template and subject based on context
+      let htmlContent, textContent, subject
+      
+      if (isNewPolicy) {
+        // New policy welcome email
+        subject = `Welcome to NIC ${lobName} Insurance - Your Initial Premium Payment`
+        htmlContent = this.generateNewPolicyWelcomeHTML(customer, qrCodeUrl, paymentLink, lob, referenceNumber, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, options.agentEmail, options.agentName)
+        textContent = this.generateNewPolicyWelcomeText(customer, paymentLink, lob, referenceNumber, options.agentEmail, options.agentName)
+      } else {
+        // Payment reminder email
+        subject = `Payment Reminder - ${lobName} Policy ${referenceNumber}`
+        htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, lob, referenceNumber)
+        textContent = this.generatePaymentReminderText(customer, paymentLink, lob, referenceNumber)
+      }
 
       return await this.sendTransactionalEmail({
         to: {
           email: customer.email,
           name: customer.name
         },
-        subject: `Payment Reminder - Policy ${customer.policyNumber || 'N/A'}`,
+        subject,
         htmlContent,
         textContent,
-        attachments
+        attachments,
+        sender  // Use LOB-specific sender
       })
     } catch (error) {
       console.error('Payment reminder email failed:', error);
@@ -123,9 +154,10 @@ class EmailService {
     }
   }
 
-  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null) {
+  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null, lob = 'life', referenceNumber = 'N/A') {
     // Use inline CID if available, otherwise use URL
     const qrSrc = qrImageSrc || qrCodeUrl;
+    const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
     
     return `
       <!DOCTYPE html>
@@ -149,7 +181,7 @@ class EmailService {
       <body>
         <div class="container">
           <div class="header">
-            <h1>NIC Life Insurance Mauritius</h1>
+            <h1>NIC ${lobName} Insurance Mauritius</h1>
             <h2 style="margin: 10px 0 0 0; font-weight: normal;">Payment Reminder</h2>
           </div>
           
@@ -159,7 +191,7 @@ class EmailService {
             <p>This is a friendly reminder that your insurance policy has a pending payment.</p>
             
             <div style="background: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
-              <p><strong>Policy Number:</strong> ${customer.policyNumber}</p>
+              <p><strong>Policy Number:</strong> ${referenceNumber}</p>
               <p><strong>Amount Due:</strong> <span class="amount">MUR ${customer.amountDue.toLocaleString()}</span></p>
             </div>
             
@@ -178,7 +210,7 @@ class EmailService {
             <p>Thank you for your prompt attention to this matter.</p>
             
             <p>Best regards,<br>
-            <strong>NIC Life Insurance Mauritius</strong><br>
+            <strong>NIC ${lobName} Insurance Mauritius</strong><br>
             Customer Service Team</p>
           </div>
           
@@ -191,13 +223,14 @@ class EmailService {
     `
   }
 
-  generatePaymentReminderText(customer, paymentLink) {
+  generatePaymentReminderText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A') {
+    const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
     return `
 Dear ${customer.name},
 
 This is a friendly reminder that your insurance policy has a pending payment.
 
-Policy Number: ${customer.policyNumber}
+Policy Number: ${referenceNumber}
 Amount Due: MUR ${customer.amountDue.toLocaleString()}
 
 Please use the QR code above to make your payment via mobile banking.
@@ -207,10 +240,122 @@ If you have any questions or need assistance, please contact our customer servic
 Thank you for your prompt attention to this matter.
 
 Best regards,
-NIC Life Insurance Mauritius
+NIC ${lobName} Insurance Mauritius
 Customer Service Team
 
 ---
+This is an automated message. Please do not reply to this email.
+    `.trim()
+  }
+
+  // NEW: Welcome email for new policies (sales agents)
+  generateNewPolicyWelcomeHTML(customer, qrCodeUrl, paymentLink, lob = 'life', referenceNumber = 'N/A', qrImageSrc = null, agentEmail = null, agentName = null) {
+    const qrSrc = qrImageSrc || qrCodeUrl;
+    const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to NIC ${lobName} Insurance</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #000; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ffffff; color: #000; padding: 20px; text-align: center; border-bottom: 2px solid #e5e7eb; }
+          .content { padding: 20px; background: #ffffff; }
+          .amount { font-size: 24px; font-weight: bold; color: #000; }
+          .qr-section { text-align: center; margin: 20px 0; background: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; }
+          .qr-code { max-width: 200px; border: 1px solid #ddd; }
+          .agent-contact { background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; border-top: 1px solid #e5e7eb; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="color: #000; margin: 0;">Welcome to NIC ${lobName} Insurance!</h1>
+            <h2 style="margin: 10px 0 0 0; font-weight: normal; color: #000;">Your Initial Premium Payment</h2>
+          </div>
+          
+          <div class="content">
+            <p>Dear <strong>${customer.name}</strong>,</p>
+            
+            <p>Thank you for choosing NIC ${lobName} Insurance Mauritius for your insurance needs!</p>
+            
+            <div style="background: #f9fafb; padding: 15px; border-radius: 5px; margin: 15px 0; border: 1px solid #e5e7eb;">
+              <h3 style="margin-top: 0; color: #000;">Your Application Details</h3>
+              <p><strong>Application Form Number:</strong> ${referenceNumber}</p>
+              <p><strong>Line of Business:</strong> ${lobName} Insurance</p>
+              <p><strong>Initial Premium:</strong> <span class="amount">MUR ${customer.amountDue.toLocaleString()}</span></p>
+            </div>
+            
+            ${qrSrc ? `
+            <div class="qr-section">
+              <h3 style="color: #000;">Complete Your Payment</h3>
+              <img src="${qrSrc}" alt="Payment QR Code" class="qr-code" style="max-width: 200px; border: 1px solid #ddd;">
+              <p>Scan this QR code with your mobile banking app to pay your initial premium instantly.</p>
+            </div>
+            ` : ''}
+            
+            ${agentEmail ? `
+            <div class="agent-contact">
+              <h4 style="margin-top: 0; color: #000;">Your Sales Agent Contact</h4>
+              <p style="margin: 5px 0;"><strong>Name:</strong> ${agentName || 'Sales Agent'}</p>
+              <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${agentEmail}" style="color: #2563eb;">${agentEmail}</a></p>
+              <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">For any questions or assistance, please contact your sales agent directly.</p>
+            </div>
+            ` : '<p>If you have any questions, please contact your sales agent or our customer service team.</p>'}
+            
+            <p>Best regards,<br>
+            <strong>NIC ${lobName} Insurance Mauritius</strong><br>
+            Sales Team</p>
+          </div>
+          
+          <div class="footer">
+            <p>NIC Centre, 217 Royal Road, Curepipe, Mauritius</p>
+            <p>This is an automated message. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  generateNewPolicyWelcomeText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null) {
+    const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
+    const agentContact = agentEmail ? `
+
+YOUR SALES AGENT CONTACT:
+Name: ${agentName || 'Sales Agent'}
+Email: ${agentEmail}
+
+For any questions or assistance, please contact your sales agent directly.
+` : 'If you have any questions, please contact your sales agent or our customer service team.'
+    
+    return `
+Welcome to NIC ${lobName} Insurance Mauritius!
+
+Dear ${customer.name},
+
+Thank you for choosing NIC ${lobName} Insurance for your insurance needs!
+
+Your Application Details:
+- Application Form Number: ${referenceNumber}
+- Line of Business: ${lobName} Insurance
+- Initial Premium: MUR ${customer.amountDue.toLocaleString()}
+
+COMPLETE YOUR PAYMENT:
+Please scan the QR code in this email with your mobile banking app to pay your initial premium instantly.
+${agentContact}
+
+Best regards,
+NIC ${lobName} Insurance Mauritius
+Sales Team
+
+---
+NIC Centre, 217 Royal Road, Curepipe, Mauritius
 This is an automated message. Please do not reply to this email.
     `.trim()
   }

@@ -9,8 +9,9 @@ const Sidebar = () => {
 
   // Different navigation for different agent types
   const salesAgentNavItems = [
-    { to: '/', icon: Home, label: 'Dashboard' }
-    // Sales agents only need Dashboard (LOB system)
+    { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+    // Sales agents can generate QR for new customers
   ]
 
   const csrNavItems = [

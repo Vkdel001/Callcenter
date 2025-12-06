@@ -246,11 +246,16 @@ const LOBDashboard = () => {
         const result = await customerService.sendEmail(
           qrData.customerData,
           qrData.qrCodeUrl,
-          qrData.paymentLink
+          qrData.paymentLink,
+          {
+            agentEmail: user?.email,
+            agentName: user?.name,
+            lineOfBusiness: lobType
+          }
         )
 
         if (result.success) {
-          alert('✅ Payment reminder email sent successfully!')
+          alert('✅ Payment reminder email sent successfully! (You have been CC\'d)')
         } else {
           alert(`❌ Failed to send email: ${result.error}`)
         }

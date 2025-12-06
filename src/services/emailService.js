@@ -16,7 +16,9 @@ class EmailService {
     attachments = [],
     templateId = null,
     templateParams = {},
-    sender = null
+    sender = null,
+    cc = null,
+    replyTo = null
   }) {
     try {
       const payload = {
@@ -24,7 +26,7 @@ class EmailService {
           name: import.meta.env.VITE_SENDER_NAME || 'Insurance Company',
           email: import.meta.env.VITE_SENDER_EMAIL || 'noreply@insurance.com'
         },
-        replyTo: {
+        replyTo: replyTo || {
           name: import.meta.env.VITE_REPLY_TO_NAME || import.meta.env.VITE_SENDER_NAME || 'Insurance Company',
           email: import.meta.env.VITE_REPLY_TO_EMAIL || import.meta.env.VITE_SENDER_EMAIL || 'noreply@insurance.com'
         },
@@ -34,6 +36,7 @@ class EmailService {
             name: to.name || to.email
           }
         ],
+        ...(cc && { cc: Array.isArray(cc) ? cc : [cc] }),
         subject,
         ...(templateId ? {
           templateId,
@@ -89,6 +92,8 @@ class EmailService {
       const isNewPolicy = options.isNewPolicy || false
       const lob = options.lineOfBusiness || 'life'
       const referenceNumber = options.referenceNumber || customer.policyNumber || 'N/A'
+      const agentEmail = options.agentEmail || null
+      const agentName = options.agentName || null
       
       // Convert QR code URL to base64 for inline attachment (better for Gmail)
       let qrBase64 = null;
@@ -125,16 +130,17 @@ class EmailService {
       if (isNewPolicy) {
         // New policy welcome email
         subject = `Welcome to NIC ${lobName} Insurance - Your Initial Premium Payment`
-        htmlContent = this.generateNewPolicyWelcomeHTML(customer, qrCodeUrl, paymentLink, lob, referenceNumber, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, options.agentEmail, options.agentName)
-        textContent = this.generateNewPolicyWelcomeText(customer, paymentLink, lob, referenceNumber, options.agentEmail, options.agentName)
+        htmlContent = this.generateNewPolicyWelcomeHTML(customer, qrCodeUrl, paymentLink, lob, referenceNumber, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, agentEmail, agentName)
+        textContent = this.generateNewPolicyWelcomeText(customer, paymentLink, lob, referenceNumber, agentEmail, agentName)
       } else {
-        // Payment reminder email
+        // Payment reminder email - NOW WITH AGENT INFO
         subject = `Payment Reminder - ${lobName} Policy ${referenceNumber}`
-        htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, lob, referenceNumber)
-        textContent = this.generatePaymentReminderText(customer, paymentLink, lob, referenceNumber)
+        htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, lob, referenceNumber, agentEmail, agentName)
+        textContent = this.generatePaymentReminderText(customer, paymentLink, lob, referenceNumber, agentEmail, agentName)
       }
 
-      return await this.sendTransactionalEmail({
+      // Prepare email options
+      const emailOptions = {
         to: {
           email: customer.email,
           name: customer.name
@@ -144,7 +150,21 @@ class EmailService {
         textContent,
         attachments,
         sender  // Use LOB-specific sender
-      })
+      }
+
+      // Add CC and Reply-To for agent if provided
+      if (agentEmail) {
+        emailOptions.cc = [{
+          email: agentEmail,
+          name: agentName || 'Agent'
+        }]
+        emailOptions.replyTo = {
+          email: agentEmail,
+          name: agentName || 'Your Agent'
+        }
+      }
+
+      return await this.sendTransactionalEmail(emailOptions)
     } catch (error) {
       console.error('Payment reminder email failed:', error);
       return {
@@ -154,7 +174,7 @@ class EmailService {
     }
   }
 
-  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null, lob = 'life', referenceNumber = 'N/A') {
+  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null) {
     // Use inline CID if available, otherwise use URL
     const qrSrc = qrImageSrc || qrCodeUrl;
     const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
@@ -174,7 +194,7 @@ class EmailService {
           .amount { font-size: 24px; font-weight: bold; color: #dc2626; }
           .qr-section { text-align: center; margin: 20px 0; }
           .qr-code { max-width: 200px; border: 1px solid #ddd; }
-
+          .agent-contact { background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; margin: 20px 0; }
           .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
         </style>
       </head>
@@ -203,9 +223,14 @@ class EmailService {
             </div>
             ` : ''}
             
-
-            
-            <p>If you have any questions or need assistance, please contact our customer service team.</p>
+            ${agentEmail ? `
+            <div class="agent-contact">
+              <h4 style="margin-top: 0; color: #000;">Your Agent Contact</h4>
+              <p style="margin: 5px 0;"><strong>Name:</strong> ${agentName || 'Your Agent'}</p>
+              <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${agentEmail}" style="color: #2563eb;">${agentEmail}</a></p>
+              <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">For any questions or assistance, please contact your agent directly by replying to this email.</p>
+            </div>
+            ` : '<p>If you have any questions or need assistance, please contact our customer service team.</p>'}
             
             <p>Thank you for your prompt attention to this matter.</p>
             
@@ -215,7 +240,7 @@ class EmailService {
           </div>
           
           <div class="footer">
-            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>This is an automated message${agentEmail ? '' : '. Please do not reply to this email'}.</p>
           </div>
         </div>
       </body>
@@ -223,8 +248,17 @@ class EmailService {
     `
   }
 
-  generatePaymentReminderText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A') {
+  generatePaymentReminderText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null) {
     const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
+    const agentContact = agentEmail ? `
+
+YOUR AGENT CONTACT:
+Name: ${agentName || 'Your Agent'}
+Email: ${agentEmail}
+
+For any questions or assistance, please contact your agent directly by replying to this email.
+` : 'If you have any questions or need assistance, please contact our customer service team.'
+    
     return `
 Dear ${customer.name},
 
@@ -234,8 +268,7 @@ Policy Number: ${referenceNumber}
 Amount Due: MUR ${customer.amountDue.toLocaleString()}
 
 Please use the QR code above to make your payment via mobile banking.
-
-If you have any questions or need assistance, please contact our customer service team.
+${agentContact}
 
 Thank you for your prompt attention to this matter.
 
@@ -244,7 +277,7 @@ NIC ${lobName} Insurance Mauritius
 Customer Service Team
 
 ---
-This is an automated message. Please do not reply to this email.
+This is an automated message.
     `.trim()
   }
 

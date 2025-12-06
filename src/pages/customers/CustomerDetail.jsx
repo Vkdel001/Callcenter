@@ -218,11 +218,14 @@ const CustomerDetail = () => {
 
   const sendEmailMutation = useMutation(
     ({ customer, qrCodeUrl, paymentLink }) =>
-      customerService.sendEmail(customer, qrCodeUrl, paymentLink),
+      customerService.sendEmail(customer, qrCodeUrl, paymentLink, {
+        agentEmail: user?.email,
+        agentName: user?.name
+      }),
     {
       onSuccess: (result) => {
         if (result.success) {
-          alert('Email sent successfully!')
+          alert('Email sent successfully! (You have been CC\'d)')
         } else {
           alert(`Failed to send email: ${result.error}`)
         }

@@ -23,6 +23,13 @@ import QuickQRGenerator from './pages/QuickQRGenerator'
 import PaymentPlanTest from './pages/test/PaymentPlanTest'
 import InstallmentReminder from './pages/InstallmentReminder'
 import LOBDashboard from './components/sales/LOBDashboard'
+import CSLDropdownConfig from './pages/admin/csl/CSLDropdownConfig'
+import CSLPolicyUpload from './pages/admin/csl/CSLPolicyUpload'
+import CSLPaymentUpload from './pages/admin/csl/CSLPaymentUpload'
+import CSLAgentReports from './pages/admin/csl/CSLAgentReports'
+import CSLDashboard from './pages/csl/CSLDashboard'
+import CSLPolicyDetail from './pages/csl/CSLPolicyDetail'
+import CSLReports from './pages/csl/CSLReports'
 
 function App() {
   // Initialize scheduler and check database when app starts
@@ -75,6 +82,17 @@ function App() {
           <Route path="admin/branches" element={<BranchManagement />} />
           <Route path="admin/scheduler" element={<ReminderScheduler />} />
           <Route path="test/payment-plan" element={<PaymentPlanTest />} />
+          
+          {/* CSL Admin Routes */}
+          <Route path="admin/csl/upload-policies" element={<CSLPolicyUpload />} />
+          <Route path="admin/csl/upload-payments" element={<CSLPaymentUpload />} />
+          <Route path="admin/csl/dropdown-config" element={<CSLDropdownConfig />} />
+          <Route path="admin/csl/agent-reports" element={<CSLAgentReports />} />
+          
+          {/* CSL Agent Routes */}
+          <Route path="csl" element={<CSLDashboard />} />
+          <Route path="csl/policy/:id" element={<CSLPolicyDetail />} />
+          <Route path="csl/reports" element={<CSLReports />} />
         </Route>
 
         {/* Public reminder pages - outside protected routes */}

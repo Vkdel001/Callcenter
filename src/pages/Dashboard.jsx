@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { customerService } from '../services/customerService'
 import { Users, Phone, DollarSign, Clock, RefreshCw } from 'lucide-react'
 import { formatCurrencyShort } from '../utils/currency'
@@ -7,7 +9,15 @@ import LOBDashboard from '../components/sales/LOBDashboard'
 
 const Dashboard = () => {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  
+  // Auto-redirect CSL agents to CSL Dashboard
+  useEffect(() => {
+    if (user?.branch_id === 13 && (user?.role === 'internal_agent' || user?.role === 'agent')) {
+      navigate('/csl', { replace: true })
+    }
+  }, [user, navigate])
   
   // Make customerService available for testing
   if (import.meta.env.DEV) {

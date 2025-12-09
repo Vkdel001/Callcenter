@@ -4,8 +4,8 @@
  * Uses polling-based architecture for production deployment
  */
 
-const DEVICE_SERVICE_URL = 'http://localhost:5001';
-const DEVICE_API_KEY = 'NIC-DEVICE-API-KEY-2024-CHANGE-ME'; // Must match backend service
+const DEVICE_SERVICE_URL = 'https://payments.niclmauritius.site';
+const DEVICE_API_KEY = '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI='; // Must match backend service
 
 class DeviceService {
   constructor() {

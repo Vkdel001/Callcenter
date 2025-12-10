@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../../services/customerService'
@@ -23,6 +23,7 @@ const CustomerDetail = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrData, setQrData] = useState(null)
   const [showAODModal, setShowAODModal] = useState(false)
@@ -516,7 +517,23 @@ const CustomerDetail = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Get preserved URL parameters
+              const returnPage = searchParams.get('returnPage')
+              const returnSearch = searchParams.get('returnSearch')
+              const returnStatus = searchParams.get('returnStatus')
+              const customerId = searchParams.get('customerId')
+              
+              // Build the return URL with preserved state
+              const params = new URLSearchParams()
+              if (returnPage && returnPage !== '1') params.set('page', returnPage)
+              if (returnSearch) params.set('search', returnSearch)
+              if (returnStatus && returnStatus !== 'all') params.set('status', returnStatus)
+              if (customerId) params.set('customerId', customerId)
+              
+              const returnUrl = params.toString() ? `/customers?${params.toString()}` : '/customers'
+              navigate(returnUrl)
+            }}
             className="flex items-center text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-5 w-5 mr-1" />

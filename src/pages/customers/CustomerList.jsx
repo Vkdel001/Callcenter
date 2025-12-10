@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from 'react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { customerService } from '../../services/customerService'
 import { Search, Eye } from 'lucide-react'
@@ -8,10 +8,42 @@ import { formatCurrencyShort } from '../../utils/currency'
 
 const CustomerList = () => {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 50
+
+  // Initialize state from URL parameters
+  useEffect(() => {
+    const pageFromUrl = parseInt(searchParams.get('page')) || 1
+    const searchFromUrl = searchParams.get('search') || ''
+    const statusFromUrl = searchParams.get('status') || 'all'
+    const customerIdFromUrl = searchParams.get('customerId')
+    
+    setCurrentPage(pageFromUrl)
+    setSearchTerm(searchFromUrl)
+    setStatusFilter(statusFromUrl)
+    
+    // Scroll to customer row if customerId is in URL
+    if (customerIdFromUrl) {
+      // Use setTimeout to ensure the component has rendered
+      setTimeout(() => {
+        const customerRow = document.getElementById(`customer-row-${customerIdFromUrl}`)
+        if (customerRow) {
+          customerRow.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          })
+          // Briefly highlight the row
+          customerRow.style.backgroundColor = '#fef3c7' // yellow-100
+          setTimeout(() => {
+            customerRow.style.backgroundColor = ''
+          }, 2000)
+        }
+      }, 100)
+    }
+  }, [])
 
   // For internal agents, fetch ALL branch customers; for others, fetch assigned customers
   const { data: customers = [], isLoading } = useQuery(
@@ -50,15 +82,33 @@ const CustomerList = () => {
   const endIndex = startIndex + ITEMS_PER_PAGE
   const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex)
 
+  // Update URL parameters when state changes
+  const updateUrlParams = (newPage, newSearch = searchTerm, newStatus = statusFilter, customerId = null) => {
+    const params = new URLSearchParams()
+    if (newPage > 1) params.set('page', newPage.toString())
+    if (newSearch) params.set('search', newSearch)
+    if (newStatus !== 'all') params.set('status', newStatus)
+    if (customerId) params.set('customerId', customerId.toString())
+    setSearchParams(params)
+  }
+
   // Reset to page 1 when search/filter changes
   const handleSearchChange = (value) => {
     setSearchTerm(value)
     setCurrentPage(1)
+    updateUrlParams(1, value, statusFilter)
   }
 
   const handleFilterChange = (value) => {
     setStatusFilter(value)
     setCurrentPage(1)
+    updateUrlParams(1, searchTerm, value)
+  }
+
+  // Handle page changes
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage)
+    updateUrlParams(newPage, searchTerm, statusFilter)
   }
 
   const getStatusBadge = (status) => {
@@ -155,7 +205,7 @@ const CustomerList = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedCustomers.map((customer) => (
-                <tr key={customer.id} className="hover:bg-gray-50">
+                <tr key={customer.id} id={`customer-row-${customer.id}`} className="hover:bg-gray-50 transition-colors duration-200">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -184,7 +234,7 @@ const CustomerList = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <Link
-                      to={`/customers/${customer.id}`}
+                      to={`/customers/${customer.id}?returnPage=${currentPage}&returnSearch=${encodeURIComponent(searchTerm)}&returnStatus=${statusFilter}&customerId=${customer.id}`}
                       className="text-primary-600 hover:text-primary-900 flex items-center"
                     >
                       <Eye className="h-4 w-4 mr-1" />
@@ -201,7 +251,7 @@ const CustomerList = () => {
       {/* Mobile Cards - Shown on Mobile Only */}
       <div className="mobile-cards block md:hidden space-y-4">
         {paginatedCustomers.map((customer) => (
-          <div key={customer.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 customer-item">
+          <div key={customer.id} id={`customer-row-${customer.id}`} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 customer-item transition-colors duration-200">
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900 text-lg">
@@ -247,7 +297,7 @@ const CustomerList = () => {
 
             <div className="mt-4">
               <Link
-                to={`/customers/${customer.id}`}
+                to={`/customers/${customer.id}?returnPage=${currentPage}&returnSearch=${encodeURIComponent(searchTerm)}&returnStatus=${statusFilter}&customerId=${customer.id}`}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium text-center hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
                 <Eye className="h-4 w-4 mr-2" />
@@ -278,7 +328,7 @@ const CustomerList = () => {
             <div className="flex items-center gap-2">
               {/* Previous button */}
               <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -302,7 +352,7 @@ const CustomerList = () => {
                   return (
                     <button
                       key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
+                      onClick={() => handlePageChange(pageNum)}
                       className={`px-3 py-1 rounded-md text-sm font-medium ${
                         currentPage === pageNum
                           ? 'bg-primary-600 text-white'

@@ -412,6 +412,9 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
                         <option value="4">4 months</option>
                         <option value="5">5 months</option>
                         <option value="6">6 months</option>
+                        <option value="7">7 months</option>
+                        <option value="8">8 months</option>
+                        <option value="9">9 months</option>
                       </select>
                       {errors.months && (
                         <p className="mt-1 text-sm text-red-600">{errors.months.message}</p>

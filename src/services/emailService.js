@@ -135,8 +135,8 @@ class EmailService {
       } else {
         // Payment reminder email - NOW WITH AGENT INFO
         subject = `Payment Reminder - ${lobName} Policy ${referenceNumber}`
-        htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, lob, referenceNumber, agentEmail, agentName)
-        textContent = this.generatePaymentReminderText(customer, paymentLink, lob, referenceNumber, agentEmail, agentName)
+        htmlContent = this.generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrBase64 ? 'cid:qr-code.png' : qrCodeUrl, lob, referenceNumber, agentEmail, agentName, options.isCslAgent)
+        textContent = this.generatePaymentReminderText(customer, paymentLink, lob, referenceNumber, agentEmail, agentName, options.isCslAgent)
       }
 
       // Prepare email options
@@ -152,8 +152,8 @@ class EmailService {
         sender  // Use LOB-specific sender
       }
 
-      // Add CC and Reply-To for agent if provided
-      if (agentEmail) {
+      // Add CC and Reply-To for agent if provided (but NOT for CSL agents)
+      if (agentEmail && !options.isCslAgent) {
         emailOptions.cc = [{
           email: agentEmail,
           name: agentName || 'Agent'
@@ -174,10 +174,29 @@ class EmailService {
     }
   }
 
-  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null) {
+  generatePaymentReminderHTML(customer, qrCodeUrl, paymentLink, qrImageSrc = null, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null, isCslAgent = false) {
     // Use inline CID if available, otherwise use URL
     const qrSrc = qrImageSrc || qrCodeUrl;
     const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
+    
+    // Generate contact section based on agent type
+    const contactSection = isCslAgent ? `
+      <div class="agent-contact">
+        <p style="margin: 0; color: #666; line-height: 1.6;">
+          Should you require any additional information, please do not 
+          hesitate to email us on <a href="mailto:nicarlife@nicl.mu" 
+          style="color: #2563eb;">nicarlife@nicl.mu</a> or call our 
+          Recovery Department on <strong>602-3315</strong>.
+        </p>
+      </div>
+    ` : (agentEmail ? `
+      <div class="agent-contact">
+        <h4 style="margin-top: 0; color: #000;">Your Agent Contact</h4>
+        <p style="margin: 5px 0;"><strong>Name:</strong> ${agentName || 'Your Agent'}</p>
+        <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${agentEmail}" style="color: #2563eb;">${agentEmail}</a></p>
+        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">For any questions or assistance, please contact your agent directly by replying to this email.</p>
+      </div>
+    ` : '<p>If you have any questions or need assistance, please contact our customer service team.</p>')
     
     return `
       <!DOCTYPE html>
@@ -223,14 +242,7 @@ class EmailService {
             </div>
             ` : ''}
             
-            ${agentEmail ? `
-            <div class="agent-contact">
-              <h4 style="margin-top: 0; color: #000;">Your Agent Contact</h4>
-              <p style="margin: 5px 0;"><strong>Name:</strong> ${agentName || 'Your Agent'}</p>
-              <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${agentEmail}" style="color: #2563eb;">${agentEmail}</a></p>
-              <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">For any questions or assistance, please contact your agent directly by replying to this email.</p>
-            </div>
-            ` : '<p>If you have any questions or need assistance, please contact our customer service team.</p>'}
+            ${contactSection}
             
             <p>Thank you for your prompt attention to this matter.</p>
             
@@ -248,16 +260,21 @@ class EmailService {
     `
   }
 
-  generatePaymentReminderText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null) {
+  generatePaymentReminderText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null, isCslAgent = false) {
     const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
-    const agentContact = agentEmail ? `
+    
+    // Generate contact text based on agent type
+    const agentContact = isCslAgent ? `
+
+Should you require any additional information, please do not hesitate to email us on nicarlife@nicl.mu or call our Recovery Department on 602-3315.
+` : (agentEmail ? `
 
 YOUR AGENT CONTACT:
 Name: ${agentName || 'Your Agent'}
 Email: ${agentEmail}
 
 For any questions or assistance, please contact your agent directly by replying to this email.
-` : 'If you have any questions or need assistance, please contact our customer service team.'
+` : 'If you have any questions or need assistance, please contact our customer service team.')
     
     return `
 Dear ${customer.name},

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../services/customerService'
+import { deviceService } from '../services/deviceService'
 import { QrCode, User, CreditCard, Phone, Hash, DollarSign, MessageSquare, Mail, X } from 'lucide-react'
 import { formatCurrency } from '../utils/currency'
 import { useAuth } from '../contexts/AuthContext'
@@ -25,12 +26,45 @@ const QuickQRGenerator = () => {
   const generateQRMutation = useMutation(
     (customerData) => customerService.generateQRCode(customerData),
     {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         if (data.success === false) {
           alert(`❌ QR Generation Failed: ${data.error}`)
         } else {
+          // Show QR on screen (existing functionality)
           setQrData(data)
           setShowQRModal(true)
+          
+          // NEW: Also try to send to ESP32 device (parallel, non-blocking)
+          try {
+            console.log('📱 Attempting to send QR to device...')
+            console.log('QR URL:', data.qrCodeUrl)
+            
+            // Convert image URL to data URI (base64)
+            const response = await fetch(data.qrCodeUrl)
+            const blob = await response.blob()
+            const reader = new FileReader()
+            
+            reader.onloadend = async () => {
+              const dataUri = reader.result
+              console.log('📱 Converted to data URI, sending to device...')
+              
+              const deviceResult = await deviceService.displayQR(dataUri, data.customerData)
+              
+              if (deviceResult.success) {
+                console.log('✅ QR queued for device successfully')
+                console.log('Command ID:', deviceResult.command_id)
+                // Optional: Show a subtle notification
+                // You could add a toast notification here if you have one
+              } else {
+                console.log('⚠️ Device display failed:', deviceResult.error)
+              }
+            }
+            
+            reader.readAsDataURL(blob)
+          } catch (deviceError) {
+            // Device error should not break the main flow
+            console.error('Device service error:', deviceError)
+          }
         }
       },
       onError: (error) => {
@@ -615,7 +649,18 @@ const QuickQRGenerator = () => {
                 Generate New QR
               </button>
               <button
-                onClick={() => setShowQRModal(false)}
+                onClick={async () => {
+                  setShowQRModal(false)
+                  // Restart device rotation after payment
+                  try {
+                    const deviceResult = await deviceService.paymentComplete()
+                    if (deviceResult.success) {
+                      console.log('✅ Device rotation restarted')
+                    }
+                  } catch (error) {
+                    console.error('Payment complete error:', error)
+                  }
+                }}
                 className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
               >
                 Close

@@ -154,12 +154,16 @@ const ContactUpdateHistory = ({ customerId }) => {
               )}
 
               {update.new_email && (
-                <div className="flex items-center text-sm">
-                  <Mail className="w-4 h-4 text-gray-400 mr-2" />
-                  <span className="text-gray-600">Email:</span>
-                  <span className="ml-2 text-gray-400 line-through">{update.old_email}</span>
-                  <span className="mx-2 text-gray-400">→</span>
-                  <span className="font-medium text-gray-900">{update.new_email}</span>
+                <div className="text-sm">
+                  <div className="flex items-center mb-1">
+                    <Mail className="w-4 h-4 text-gray-400 mr-2" />
+                    <span className="text-gray-600">Email:</span>
+                  </div>
+                  <div className="ml-6 flex items-center flex-wrap">
+                    <span className="text-gray-400 line-through break-all">{update.old_email}</span>
+                    <span className="mx-2 text-gray-400 flex-shrink-0">→</span>
+                    <span className="font-medium text-gray-900 break-all">{update.new_email}</span>
+                  </div>
                 </div>
               )}
 

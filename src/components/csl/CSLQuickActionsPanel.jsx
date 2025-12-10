@@ -69,6 +69,7 @@ export default function CSLQuickActionsPanel({ policy, onQRGenerated, onActionCo
         {
           agentEmail: user.email,
           agentName: user.name,
+          agentBranchId: user.branch_id,
           ccAgent: true
         }
       )

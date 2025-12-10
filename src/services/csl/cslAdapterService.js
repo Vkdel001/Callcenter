@@ -113,7 +113,7 @@ class CSLAdapterService {
       // Import emailService dynamically to avoid circular dependencies
       const { emailService } = await import('../emailService')
       
-      // Call existing email service (NO CHANGES to emailService.js)
+      // Call existing email service with CSL flag
       const result = await emailService.sendPaymentReminderEmail(
         customerData,
         qrCodeUrl,
@@ -121,6 +121,8 @@ class CSLAdapterService {
         {
           agentEmail: options.agentEmail,
           agentName: options.agentName,
+          agentBranchId: options.agentBranchId,
+          isCslAgent: options.agentBranchId === 13,  // CSL agents are Branch 13
           lineOfBusiness: 'life',
           ccAgent: options.ccAgent !== undefined ? options.ccAgent : true
         }

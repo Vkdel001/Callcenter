@@ -555,8 +555,8 @@ Please scan the QR code that will be sent next to make payment via mobile bankin
 Thank you,
 NIC Life Insurance Mauritius`
 
-      // Create WhatsApp Web URL
-      const whatsappUrl = `https://web.whatsapp.com/send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`
+      // Create WhatsApp URL (universal - works on mobile and desktop)
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
 
       console.log('WhatsApp URL:', whatsappUrl)
 
@@ -564,7 +564,7 @@ NIC Life Insurance Mauritius`
       const whatsappWindow = window.open(whatsappUrl, 'whatsapp_web')
 
       if (!whatsappWindow) {
-        throw new Error('Failed to open WhatsApp Web. Please check if popups are blocked.')
+        throw new Error('Failed to open WhatsApp. Please check if popups are blocked.')
       }
 
       // Wait a moment, then handle QR code sharing
@@ -617,7 +617,7 @@ NIC Life Insurance Mauritius`
 
       return {
         success: true,
-        message: 'WhatsApp Web opened with contact. QR code will be shared/downloaded separately.',
+        message: 'WhatsApp opened with contact. QR code will be shared/downloaded separately.',
         url: whatsappUrl
       }
     } catch (error) {

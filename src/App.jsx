@@ -30,6 +30,7 @@ import CSLAgentReports from './pages/admin/csl/CSLAgentReports'
 import CSLDashboard from './pages/csl/CSLDashboard'
 import CSLPolicyDetail from './pages/csl/CSLPolicyDetail'
 import CSLReports from './pages/csl/CSLReports'
+import FollowUpDashboard from './pages/FollowUpDashboard'
 
 function App() {
   // Initialize scheduler and check database when app starts
@@ -72,6 +73,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="customers" element={<CustomerList />} />
           <Route path="customers/:id" element={<CustomerDetail />} />
+          <Route path="follow-ups" element={<FollowUpDashboard />} />
           <Route path="quick-qr" element={<QuickQRGenerator />} />
           <Route path="lob/:lobType" element={<LOBDashboard />} />
           <Route path="lob/:lobType/:month" element={<LOBDashboard />} />

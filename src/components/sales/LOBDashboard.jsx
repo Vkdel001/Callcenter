@@ -20,6 +20,8 @@ const LOBDashboard = () => {
   const [loadingCustomers, setLoadingCustomers] = useState(new Set())
   const modalStateRef = useRef({ showModal: false, data: null })
   const [currentPage, setCurrentPage] = useState(1)
+  const [highlightPosition, setHighlightPosition] = useState(null)
+  const [highlightMessage, setHighlightMessage] = useState('')
   const ITEMS_PER_PAGE = 50
 
   // Format month display consistently
@@ -54,7 +56,8 @@ const LOBDashboard = () => {
       
       // Validate user type and required fields
       if (user.agent_type === 'sales_agent' && !user.sales_agent_id) return
-      if (user.agent_type !== 'sales_agent' && user.agent_type !== 'csr') return
+      if (user.agent_type === 'internal' && !user.branch_id) return
+      if (user.agent_type !== 'sales_agent' && user.agent_type !== 'csr' && user.agent_type !== 'internal') return
 
       console.log(`Loading customers for ${lobType} - ${month} (${user.agent_type})`)
       setCustomerListLoading(true)
@@ -71,6 +74,12 @@ const LOBDashboard = () => {
           )
         } else if (user.agent_type === 'csr') {
           result = await customerService.getCSRCustomersForLOBMonth(
+            lobType,
+            month
+          )
+        } else if (user.agent_type === 'internal') {
+          result = await customerService.getInternalAgentCustomersForLOBMonth(
+            user.branch_id,
             lobType,
             month
           )
@@ -93,6 +102,87 @@ const LOBDashboard = () => {
     loadCustomerData()
   }, [lobType, month, user?.agent_type, user?.sales_agent_id])
 
+  // Handle URL parameters for position highlighting and navigation state
+  useEffect(() => {
+    if (!month || !customerListData) return
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const highlightPos = urlParams.get('highlightPosition')
+    const page = urlParams.get('page')
+    const search = urlParams.get('search')
+    const sort = urlParams.get('sort')
+
+    // Restore search and sort state
+    if (search) setSearchTerm(search)
+    if (sort) setSortBy(sort)
+    if (page) setCurrentPage(parseInt(page))
+
+    // Handle position highlighting with smart "next customer" logic
+    if (highlightPos) {
+      const position = parseInt(highlightPos)
+      const { customers } = customerListData
+      const filteredCustomers = getFilteredAndSortedCustomers(customers)
+      
+      // Check if the position is still valid
+      if (position < filteredCustomers.length) {
+        setHighlightPosition(position)
+        
+        // Calculate which page this position is on
+        const targetPage = Math.ceil((position + 1) / ITEMS_PER_PAGE)
+        if (targetPage !== currentPage) {
+          setCurrentPage(targetPage)
+        }
+        
+        // Set appropriate message based on scenario
+        setHighlightMessage("Showing next customer in workflow")
+        
+        // Scroll to highlighted customer after a short delay
+        setTimeout(() => {
+          const element = document.getElementById(`customer-${position}`)
+          if (element) {
+            element.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            })
+          }
+        }, 500)
+        
+        // Auto-clear highlight after 3 seconds
+        setTimeout(() => {
+          setHighlightPosition(null)
+          setHighlightMessage('')
+        }, 3000)
+      } else if (filteredCustomers.length > 0) {
+        // Position no longer exists, show last available customer
+        const lastPosition = filteredCustomers.length - 1
+        setHighlightPosition(lastPosition)
+        
+        const targetPage = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
+        if (targetPage !== currentPage) {
+          setCurrentPage(targetPage)
+        }
+        
+        setHighlightMessage("Previous customer completed. Showing last available customer.")
+        
+        // Scroll to highlighted customer
+        setTimeout(() => {
+          const element = document.getElementById(`customer-${lastPosition}`)
+          if (element) {
+            element.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            })
+          }
+        }, 500)
+        
+        setTimeout(() => {
+          setHighlightPosition(null)
+          setHighlightMessage('')
+        }, 4000)
+      }
+    }
+  }, [month, customerListData])
+
   // Reset search when URL changes
   useEffect(() => {
     setSearchTerm('')
@@ -110,7 +200,13 @@ const LOBDashboard = () => {
         return
       }
 
-      if (!user?.agent_type || (user.agent_type !== 'sales_agent' && user.agent_type !== 'csr')) {
+      if (user?.agent_type === 'internal' && !user?.branch_id) {
+        setError('Internal agent branch ID not found')
+        setLoading(false)
+        return
+      }
+
+      if (!user?.agent_type || (user.agent_type !== 'sales_agent' && user.agent_type !== 'csr' && user.agent_type !== 'internal')) {
         setError('Invalid user type for LOB dashboard')
         setLoading(false)
         return
@@ -127,6 +223,9 @@ const LOBDashboard = () => {
         } else if (user.agent_type === 'csr') {
           console.log('Fetching LOB data for CSR (universal access)')
           result = await customerService.getCSRLOBSummary()
+        } else if (user.agent_type === 'internal') {
+          console.log('Fetching LOB data for Internal Agent (branch access):', user.branch_id)
+          result = await customerService.getInternalAgentLOBSummary(user.branch_id)
         }
 
         if (result.success) {
@@ -458,6 +557,17 @@ const LOBDashboard = () => {
                 {searchTerm && ` (filtered)`}
               </span>
             </div>
+            {/* Highlight Message */}
+            {highlightMessage && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center">
+                  <svg className="h-5 w-5 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-green-800">{highlightMessage}</p>
+                </div>
+              </div>
+            )}
           </div>
           <div className="divide-y divide-gray-200">
             {(() => {
@@ -481,14 +591,42 @@ const LOBDashboard = () => {
                 )}
               </div>
             ) : (
-              paginationData.customers.map((customer) => (
-                <div key={customer.id} className="p-6 hover:bg-gray-50 transition-colors">
+              paginationData.customers.map((customer, index) => {
+                const globalPosition = (currentPage - 1) * ITEMS_PER_PAGE + index
+                const isHighlighted = highlightPosition === globalPosition
+                
+                return (
+                <div 
+                  key={customer.id} 
+                  id={`customer-${globalPosition}`}
+                  className={`p-6 transition-colors ${
+                    isHighlighted 
+                      ? 'bg-green-100 border-l-4 border-green-500 shadow-md' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center">
                         <h3 
                           className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer underline"
-                          onClick={() => navigate(`/customers/${customer.id}`)}
+                          onClick={() => {
+                            // Build LOB-aware navigation parameters for the customer detail page
+                            const customerIndex = paginationData.customers.findIndex(c => c.id === customer.id)
+                            const globalPosition = (currentPage - 1) * ITEMS_PER_PAGE + customerIndex
+                            
+                            const detailParams = new URLSearchParams({
+                              returnLob: lobType,
+                              returnMonth: month,
+                              returnPage: currentPage.toString(),
+                              returnPosition: globalPosition.toString(),
+                              returnRoute: `/lob/${lobType}/${month}`,
+                              returnSearch: searchTerm || '',
+                              returnSort: sortBy || 'amount_desc'
+                            })
+                            
+                            navigate(`/customers/${customer.id}?${detailParams.toString()}`)
+                          }}
                         >
                           {customer.titleOwner1 ? `${customer.titleOwner1} ` : ''}{customer.name}
                         </h3>
@@ -552,7 +690,8 @@ const LOBDashboard = () => {
                     </div>
                   </div>
                 </div>
-              ))
+                )
+              })
             )
             })()}
           </div>
@@ -844,12 +983,16 @@ const LOBDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                {user?.agent_type === 'csr' ? 'Customer Service Dashboard' : 'Sales Portfolio Dashboard'}
+                {user?.agent_type === 'csr' ? 'Customer Service Dashboard' : 
+                 user?.agent_type === 'internal' ? 'Branch Portfolio Dashboard' : 
+                 'Sales Portfolio Dashboard'}
               </h1>
               <p className="text-gray-600 mt-1">
                 {user?.agent_type === 'csr' 
                   ? `Welcome back! You have access to ${totalCustomers} customers across all branches and lines of business.`
-                  : `Welcome back! You have ${totalCustomers} customers across all lines of business.`
+                  : user?.agent_type === 'internal'
+                    ? `Welcome back! You have ${totalCustomers} customers in your branch across all lines of business.`
+                    : `Welcome back! You have ${totalCustomers} customers across all lines of business.`
                 }
               </p>
             </div>

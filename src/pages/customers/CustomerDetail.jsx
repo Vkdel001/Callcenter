@@ -99,7 +99,12 @@ const CustomerDetail = () => {
   const { data: callLogs = [], isLoading: callLogsLoading } = useQuery(
     ['callLogs', id],
     () => customerService.getCallLogs(id),
-    { enabled: !!id }
+    { 
+      enabled: !!id,
+      staleTime: 0, // Always consider data stale to ensure fresh fetches
+      cacheTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+      refetchOnWindowFocus: true // Refetch when window regains focus
+    }
   )
 
   // Get AOD History
@@ -112,21 +117,88 @@ const CustomerDetail = () => {
   const updateCallLogMutation = useMutation(
     (logData) => customerService.updateCallLog(id, logData),
     {
-      onSuccess: (result) => {
-        console.log('Call log mutation successful:', result)
-        queryClient.invalidateQueries(['customer', id])
-        queryClient.invalidateQueries(['customers'])
-        queryClient.invalidateQueries(['callLogs', id]) // Refresh call logs
-        reset()
-
-        // Force refetch call logs after a short delay
-        setTimeout(() => {
-          queryClient.refetchQueries(['callLogs', id])
-        }, 500)
+      // Optimistic update - immediately add the call log to the UI
+      onMutate: async (newCallLog) => {
+        // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+        await queryClient.cancelQueries(['callLogs', id])
+        
+        // Snapshot the previous value
+        const previousCallLogs = queryClient.getQueryData(['callLogs', id])
+        
+        // Optimistically update to the new value
+        const optimisticCallLog = {
+          id: Date.now(), // Temporary ID
+          status: newCallLog.status,
+          remarks: newCallLog.remarks,
+          nextFollowUp: newCallLog.nextFollowUp,
+          createdAt: new Date().toISOString(),
+          agentId: user?.id,
+          agentName: user?.name || 'Current Agent',
+          // Add a flag to identify this as optimistic
+          _optimistic: true
+        }
+        
+        queryClient.setQueryData(['callLogs', id], (old = []) => [optimisticCallLog, ...old])
+        
+        // Return a context object with the snapshotted value
+        return { previousCallLogs }
       },
-      onError: (error) => {
+      
+      onSuccess: async (result) => {
+        console.log('Call log mutation successful:', result)
+        
+        // Reset form immediately
+        reset()
+        
+        // Show success feedback
+        const successMessage = document.createElement('div')
+        successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50'
+        successMessage.textContent = '✓ Call log saved successfully'
+        document.body.appendChild(successMessage)
+        
+        // Remove success message after 3 seconds
+        setTimeout(() => {
+          if (document.body.contains(successMessage)) {
+            document.body.removeChild(successMessage)
+          }
+        }, 3000)
+        
+        // Invalidate and refetch to get the real data from server
+        await Promise.all([
+          queryClient.invalidateQueries(['customer', id]),
+          queryClient.invalidateQueries(['customers']),
+          queryClient.invalidateQueries(['callLogs', id])
+        ])
+        
+        // Force immediate refetch of call logs to replace optimistic data with real data
+        await queryClient.refetchQueries(['callLogs', id])
+      },
+      
+      onError: (error, newCallLog, context) => {
         console.error('Call log mutation failed:', error)
-        alert(`Failed to save call log: ${error.message}`)
+        
+        // Rollback to the previous value
+        if (context?.previousCallLogs) {
+          queryClient.setQueryData(['callLogs', id], context.previousCallLogs)
+        }
+        
+        // Show error feedback
+        const errorMessage = document.createElement('div')
+        errorMessage.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-50'
+        errorMessage.textContent = `✗ Failed to save call log: ${error.message}`
+        document.body.appendChild(errorMessage)
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+          if (document.body.contains(errorMessage)) {
+            document.body.removeChild(errorMessage)
+          }
+        }, 5000)
+      },
+      
+      // Always refetch after error or success to ensure consistency
+      onSettled: () => {
+        queryClient.invalidateQueries(['callLogs', id])
       }
     }
   )
@@ -518,26 +590,53 @@ const CustomerDetail = () => {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => {
-              // Get preserved URL parameters
+              // Check for LOB-specific navigation parameters first
+              const returnLob = searchParams.get('returnLob')
+              const returnMonth = searchParams.get('returnMonth')
+              const returnRoute = searchParams.get('returnRoute')
               const returnPage = searchParams.get('returnPage')
+              const returnPosition = searchParams.get('returnPosition')
               const returnSearch = searchParams.get('returnSearch')
-              const returnStatus = searchParams.get('returnStatus')
-              const customerId = searchParams.get('customerId')
+              const returnSort = searchParams.get('returnSort')
               
-              // Build the return URL with preserved state
-              const params = new URLSearchParams()
-              if (returnPage && returnPage !== '1') params.set('page', returnPage)
-              if (returnSearch) params.set('search', returnSearch)
-              if (returnStatus && returnStatus !== 'all') params.set('status', returnStatus)
-              if (customerId) params.set('customerId', customerId)
-              
-              const returnUrl = params.toString() ? `/customers?${params.toString()}` : '/customers'
-              navigate(returnUrl)
+              if (returnLob && returnMonth && returnRoute) {
+                // LOB-aware navigation - return to LOB dashboard with position highlighting
+                const lobParams = new URLSearchParams()
+                if (returnPage && returnPage !== '1') lobParams.set('page', returnPage)
+                if (returnSearch) lobParams.set('search', returnSearch)
+                if (returnSort && returnSort !== 'amount_desc') lobParams.set('sort', returnSort)
+                if (returnPosition) lobParams.set('highlightPosition', returnPosition)
+                
+                const lobUrl = lobParams.toString() ? `${returnRoute}?${lobParams.toString()}` : returnRoute
+                navigate(lobUrl)
+              } else {
+                // Fallback to generic customer list navigation (existing behavior)
+                const returnPage = searchParams.get('returnPage')
+                const returnSearch = searchParams.get('returnSearch')
+                const returnStatus = searchParams.get('returnStatus')
+                const customerId = searchParams.get('customerId')
+                
+                const params = new URLSearchParams()
+                if (returnPage && returnPage !== '1') params.set('page', returnPage)
+                if (returnSearch) params.set('search', returnSearch)
+                if (returnStatus && returnStatus !== 'all') params.set('status', returnStatus)
+                if (customerId) params.set('customerId', customerId)
+                
+                const returnUrl = params.toString() ? `/customers?${params.toString()}` : '/customers'
+                navigate(returnUrl)
+              }
             }}
             className="flex items-center text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-5 w-5 mr-1" />
-            Back to Customers
+            {(() => {
+              const returnLob = searchParams.get('returnLob')
+              const returnMonth = searchParams.get('returnMonth')
+              if (returnLob && returnMonth) {
+                return `Back to ${returnLob.charAt(0).toUpperCase() + returnLob.slice(1)} Insurance`
+              }
+              return 'Back to Customers'
+            })()}
           </button>
         </div>
 
@@ -961,17 +1060,24 @@ const CustomerDetail = () => {
             ) : callLogs.length > 0 ? (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {callLogs.map((log) => (
-                  <div key={log.id} className="border-l-4 border-primary-200 pl-3 py-2">
+                  <div key={log.id} className={`border-l-4 pl-3 py-2 ${log._optimistic ? 'border-blue-300 bg-blue-50 opacity-75' : 'border-primary-200'}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${log.status === 'contacted' ? 'bg-green-100 text-green-800' :
-                        log.status === 'busy' ? 'bg-yellow-100 text-yellow-800' :
-                          (log.status === 'no_answer' || log.status === 'not_answered') ? 'bg-red-100 text-red-800' :
-                            log.status === 'payment_promised' ? 'bg-blue-100 text-blue-800' :
-                              log.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                                'bg-gray-100 text-gray-800'
-                        }`}>
-                        {log.status.replace('_', ' ')}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${log.status === 'contacted' ? 'bg-green-100 text-green-800' :
+                          log.status === 'busy' ? 'bg-yellow-100 text-yellow-800' :
+                            (log.status === 'no_answer' || log.status === 'not_answered') ? 'bg-red-100 text-red-800' :
+                              log.status === 'payment_promised' ? 'bg-blue-100 text-blue-800' :
+                                log.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                                  'bg-gray-100 text-gray-800'
+                          }`}>
+                          {log.status.replace('_', ' ')}
+                        </span>
+                        {log._optimistic && (
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-600">
+                            Saving...
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-gray-500">
                         {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>

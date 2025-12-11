@@ -981,6 +981,130 @@ NIC Life Insurance Mauritius`
     }
   },
 
+  // NEW: Internal Agent LOB Summary (Branch-specific access)
+  async getInternalAgentLOBSummary(branchId) {
+    try {
+      console.log(`Getting LOB summary for Internal Agent (branch ${branchId})`)
+
+      // Get all customers from all branches
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+
+      // Internal agents see only customers from their specific branch
+      const branchCustomers = allCustomers.filter(customer => 
+        customer.branch_id === parseInt(branchId)
+      )
+
+      console.log(`Internal agent has access to ${branchCustomers.length} customers in branch ${branchId}`)
+
+      // Group customers by LOB and month (same logic as sales agent and CSR)
+      const lobSummary = {
+        life: { count: 0, totalAmount: 0, months: {} },
+        health: { count: 0, totalAmount: 0, months: {} },
+        motor: { count: 0, totalAmount: 0, months: {} }
+      }
+
+      branchCustomers.forEach(customer => {
+        const lob = customer.line_of_business || 'life'
+        const rawMonth = customer.assigned_month || 'Unknown'
+        const month = this.normalizeMonthFormat(rawMonth)  // Normalize month format
+        const amount = parseFloat(customer.amount_due) || 0
+
+        // Update LOB totals
+        if (lobSummary[lob]) {
+          lobSummary[lob].count += 1
+          lobSummary[lob].totalAmount += amount
+
+          // Update month breakdown
+          if (!lobSummary[lob].months[month]) {
+            lobSummary[lob].months[month] = { count: 0, totalAmount: 0 }
+          }
+          lobSummary[lob].months[month].count += 1
+          lobSummary[lob].months[month].totalAmount += amount
+        }
+      })
+
+      console.log(`Internal Agent LOB Summary (Branch ${branchId}):`, lobSummary)
+
+      return {
+        success: true,
+        totalCustomers: branchCustomers.length,
+        lobSummary
+      }
+    } catch (error) {
+      console.error('Failed to get Internal Agent LOB summary:', error)
+      return {
+        success: false,
+        error: error.message,
+        lobSummary: {
+          life: { count: 0, totalAmount: 0, months: {} },
+          health: { count: 0, totalAmount: 0, months: {} },
+          motor: { count: 0, totalAmount: 0, months: {} }
+        }
+      }
+    }
+  },
+
+  // NEW: Internal Agent Customer List (Branch-specific access to specific LOB + Month)
+  async getInternalAgentCustomersForLOBMonth(branchId, lob, month) {
+    try {
+      console.log(`Getting Internal Agent customers for Branch: ${branchId}, LOB: ${lob}, Month: ${month}`)
+
+      // Get all customers from all branches
+      const customersResponse = await customerApi.get('/nic_cc_customer')
+      const allCustomers = customersResponse.data || []
+
+      // Filter for Internal Agent: specific branch + LOB + month
+      const filteredCustomers = allCustomers.filter(customer => 
+        customer.branch_id === parseInt(branchId) &&
+        customer.line_of_business === lob &&
+        this.normalizeMonthFormat(customer.assigned_month) === month
+      )
+
+      console.log(`Found ${filteredCustomers.length} Internal Agent customers for Branch ${branchId} - ${lob} - ${month}`)
+
+      // Calculate total amount
+      const totalAmount = filteredCustomers.reduce((sum, customer) => {
+        return sum + (parseFloat(customer.amount_due) || 0)
+      }, 0)
+
+      // Transform customers to match expected format
+      const transformedCustomers = filteredCustomers.map(customer => ({
+        id: customer.id,
+        name: customer.name,
+        policyNumber: customer.policy_number,
+        mobile: customer.mobile,
+        email: customer.email,
+        amountDue: parseFloat(customer.amount_due) || 0,
+        status: customer.status || 'pending',
+        address: customer.address,
+        nationalId: customer.national_id,
+        titleOwner1: customer.title_owner1,
+        branch_id: customer.branch_id
+      }))
+
+      return {
+        success: true,
+        customers: transformedCustomers,
+        lob,
+        month,
+        totalAmount,
+        branchId
+      }
+    } catch (error) {
+      console.error('Failed to get Internal Agent customers for LOB month:', error)
+      return {
+        success: false,
+        error: error.message,
+        customers: [],
+        lob,
+        month,
+        totalAmount: 0,
+        branchId
+      }
+    }
+  },
+
   // NEW: CSR Customer List (Universal Access to specific LOB + Month)
   async getCSRCustomersForLOBMonth(lob, month) {
     try {

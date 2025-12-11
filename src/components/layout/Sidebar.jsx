@@ -1,21 +1,25 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, BarChart3, Upload, Shield, QrCode, Building2, Clock, Settings, Phone, FileText } from 'lucide-react'
+import { Home, Users, BarChart3, Upload, Shield, QrCode, Building2, Clock, Settings, Phone, FileText, Calendar } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useFollowUpNotifications } from '../../hooks/useFollowUpNotifications'
 
 const Sidebar = () => {
   const { user } = useAuth()
+  const { notificationCount, notificationText, hasUrgentNotifications } = useFollowUpNotifications()
 
 
 
   // Different navigation for different agent types
   const salesAgentNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
     { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
     // Sales agents can generate QR for new customers
   ]
 
   const csrNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
     { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
     // CSRs use LOB Dashboard for customer access (no separate Customers link)
   ]
@@ -23,6 +27,14 @@ const Sidebar = () => {
   const callCenterAgentNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/customers', icon: Users, label: 'Customers' },
+    { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+  ]
+
+  const internalAgentNavItems = [
+    { to: '/', icon: Home, label: 'LOB Dashboard' },
+    { to: '/customers', icon: Users, label: 'All Customers' },
+    { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
     { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
   ]
 
@@ -56,7 +68,8 @@ const Sidebar = () => {
     if (user?.branch_id === 13 && (user?.role === 'internal_agent' || user?.role === 'agent')) return cslAgentNavItems
     if (user?.agent_type === 'sales_agent') return salesAgentNavItems
     if (user?.agent_type === 'csr') return csrNavItems
-    return callCenterAgentNavItems // Default for call_center and internal agents
+    if (user?.agent_type === 'internal') return internalAgentNavItems
+    return callCenterAgentNavItems // Default for call_center agents
   }
 
   const navItems = getNavItems()
@@ -85,7 +98,13 @@ const Sidebar = () => {
               }
             >
               <Icon className="h-5 w-5" />
-              <span>{label}</span>
+              <span className="flex-1">{label}</span>
+              {/* Show notification badge for Follow-Ups */}
+              {to === '/follow-ups' && hasUrgentNotifications && (
+                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                  {notificationText}
+                </span>
+              )}
             </NavLink>
           </div>
         ))}

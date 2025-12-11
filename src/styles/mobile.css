@@ -34,12 +34,12 @@
     /* ===== ENHANCED BODY AND ROOT STYLING ===== */
     
     body {
-        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
         min-height: 100vh !important;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
         font-size: 16px !important;
         line-height: 1.6 !important;
-        color: var(--mobile-text-primary) !important;
+        color: #1e293b !important;
         -webkit-font-smoothing: antialiased !important;
         -moz-osx-font-smoothing: grayscale !important;
         overflow-x: hidden !important;
@@ -84,11 +84,11 @@
 
     /* ===== PROFESSIONAL SEARCH BAR STYLING ===== */
     
-    /* Premium search container with floating effect */
+    /* Bright and vibrant search container */
     .bg-white.rounded-lg.shadow.p-4 {
-        background: linear-gradient(135deg, var(--mobile-primary) 0%, var(--mobile-secondary) 100%) !important;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         border: none !important;
-        box-shadow: var(--mobile-shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
         margin-bottom: var(--mobile-spacing-xl) !important;
         position: relative !important;
         overflow: hidden !important;
@@ -484,20 +484,20 @@
         display: block !important;
     }
 
-    /* Premium customer card styling with depth */
+    /* Bright and clean customer card styling */
     .customer-item,
     [class*="customer"] {
         padding: var(--mobile-spacing-xl) !important;
         margin-bottom: var(--mobile-spacing-lg) !important;
         border-radius: var(--mobile-radius-lg) !important;
         background: 
-            linear-gradient(135deg, var(--mobile-surface) 0%, var(--mobile-surface-elevated) 100%),
-            radial-gradient(circle at top right, rgba(79, 70, 229, 0.03) 0%, transparent 50%) !important;
-        border: 1px solid var(--mobile-border) !important;
+            linear-gradient(135deg, #ffffff 0%, #f8fafc 100%),
+            radial-gradient(circle at top right, rgba(79, 70, 229, 0.05) 0%, transparent 50%) !important;
+        border: 1px solid #e2e8f0 !important;
         box-shadow: 
-            var(--mobile-shadow-md),
+            0 4px 20px rgba(0, 0, 0, 0.08),
             0 1px 3px rgba(0, 0, 0, 0.05),
-            0 0 0 1px rgba(255, 255, 255, 0.05) inset !important;
+            0 0 0 1px rgba(255, 255, 255, 0.8) inset !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
         position: relative !important;
         overflow: hidden !important;
@@ -1083,46 +1083,13 @@
         width: 100% !important;
     }
 
-    /* ===== PREMIUM DARK MODE SUPPORT ===== */
-
+    /* ===== LIGHT MODE OVERRIDE (DISABLED DARK MODE) ===== */
+    
+    /* Force light mode - override any dark mode detection */
     @media (prefers-color-scheme: dark) {
-        :root {
-            --mobile-surface: #1e293b;
-            --mobile-surface-elevated: #334155;
-            --mobile-border: #475569;
-            --mobile-text-primary: #f1f5f9;
-            --mobile-text-secondary: #94a3b8;
-        }
-
+        /* Keep everything light and bright - no dark mode changes */
         body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
-        }
-
-        .bg-white {
-            background: linear-gradient(135deg, var(--mobile-surface) 0%, var(--mobile-surface-elevated) 100%) !important;
-            color: var(--mobile-text-primary) !important;
-        }
-
-        .customer-item,
-        [class*="customer"] {
-            background: 
-                linear-gradient(135deg, var(--mobile-surface) 0%, var(--mobile-surface-elevated) 100%),
-                radial-gradient(circle at top right, rgba(79, 70, 229, 0.1) 0%, transparent 50%) !important;
-            border-color: var(--mobile-border) !important;
-        }
-
-        input:not([type="search"]):not([type="button"]):not([type="submit"]),
-        select,
-        textarea {
-            background: var(--mobile-surface-elevated) !important;
-            color: var(--mobile-text-primary) !important;
-            border-color: var(--mobile-border) !important;
-        }
-
-        input[type="search"],
-        input[placeholder*="search" i],
-        input[placeholder*="Search" i] {
-            background: rgba(51, 65, 85, 0.95) !important;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
             color: var(--mobile-text-primary) !important;
         }
     }

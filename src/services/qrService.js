@@ -3,9 +3,9 @@ class QRService {
     this.zwennPayApiUrl = 'https://api.zwennpay.com:9425/api/v1.0/Common/GetMerchantQR'
     // LOB-specific merchant codes (for database customers with callback)
     this.merchantCodes = {
-      life: import.meta.env.VITE_ZWENNPAY_MERCHANT_LIFE || '56',
-      health: import.meta.env.VITE_ZWENNPAY_MERCHANT_HEALTH || '153',
-      motor: import.meta.env.VITE_ZWENNPAY_MERCHANT_MOTOR || '155'
+      life: '151',
+      health: '153',
+      motor: '155'
     }
     // Ad-hoc merchant codes (for Quick QR Generator - no callback)
     this.adHocMerchantCodes = {

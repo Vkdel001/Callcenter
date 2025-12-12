@@ -66,6 +66,8 @@ export const customerService = {
         nameOwner2: customer.name_owner2,
         address: customer.address,
         nationalId: customer.national_id,
+        monthlyPremium: customer.monthly_premium,  // Monthly premium amount
+        nationalIdOwner2: customer.national_id_owner2,  // Owner 2 national ID
         hasPaymentPlan: customer.has_payment_plan,
         activePlansCount: customer.active_payment_plans_count
       }))
@@ -111,7 +113,9 @@ export const customerService = {
         attempts: customer.total_attempts || 0,
         branchId: customer.branch_id,
         salesAgentId: customer.sales_agent_id,
-        lineOfBusiness: customer.line_of_business
+        lineOfBusiness: customer.line_of_business,
+        monthlyPremium: customer.monthly_premium,
+        nationalIdOwner2: customer.national_id_owner2
       }))
     } catch (error) {
       console.error('Failed to get assigned customers:', error)
@@ -158,7 +162,9 @@ export const customerService = {
         attempts: customer.total_attempts || 0,
         branchId: customer.branch_id,
         salesAgentId: customer.sales_agent_id,
-        lineOfBusiness: customer.line_of_business
+        lineOfBusiness: customer.line_of_business,
+        monthlyPremium: customer.monthly_premium,
+        nationalIdOwner2: customer.national_id_owner2
       }))
     } catch (error) {
       console.error('Failed to get all branch customers:', error)
@@ -194,6 +200,7 @@ export const customerService = {
         name_owner2: customer.name_owner2,
         address: customer.address,
         national_id: customer.national_id,
+        monthly_premium: customer.monthly_premium,  // Monthly premium amount
         national_id_owner2: customer.national_id_owner2  // Owner 2 national ID
       }
     } catch (error) {
@@ -896,7 +903,9 @@ NIC Life Insurance Mauritius`
         titleOwner2: customer.title_owner2,
         nameOwner2: customer.name_owner2,
         address: customer.address,
-        nationalId: customer.national_id
+        nationalId: customer.national_id,
+        monthlyPremium: customer.monthly_premium,
+        nationalIdOwner2: customer.national_id_owner2
       }))
 
       return {
@@ -1138,7 +1147,9 @@ NIC Life Insurance Mauritius`
         titleOwner2: customer.title_owner2,
         nameOwner2: customer.name_owner2,
         address: customer.address,
-        nationalId: customer.national_id
+        nationalId: customer.national_id,
+        monthlyPremium: customer.monthly_premium,
+        nationalIdOwner2: customer.national_id_owner2
       }))
 
       return {

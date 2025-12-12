@@ -135,6 +135,8 @@ const CustomerUpload = () => {
           name_owner2: customer.name_owner2 || null,
           address: customer.address || null,
           national_id: customer.national_id || null,
+          monthly_premium: customer.monthly_premium && !isNaN(customer.monthly_premium) ? parseFloat(customer.monthly_premium) : null,
+          national_id_owner2: customer.national_id_owner2 || null,
           branch_id: customer.branch_id ? parseInt(customer.branch_id) : null
         }
         
@@ -351,10 +353,10 @@ const CustomerUpload = () => {
     // Get admin-specific LOB for template
     const adminLOB = user?.admin_lob === 'super_admin' ? 'life' : (user?.admin_lob || 'life')
     
-    const template = `policy_number,name,mobile,email,amount_due,status,last_call_date,total_attempts,sales_agent_id,line_of_business,assigned_month,title_owner1,title_owner2,name_owner2,address,national_id,branch_id
-${adminLOB.toUpperCase()}-001,John Doe,57111001,john@example.com,5000.00,pending,2025-01-20,0,SA001,${adminLOB},2024-10,Mr,,Jane Doe,123 Main Street Port Louis,ID123456789,1
-${adminLOB.toUpperCase()}-002,Jane Smith,57111002,jane@example.com,3500.50,pending,2025-01-20,0,SA002,${adminLOB},2024-11,Mrs,Mr,John Smith,456 Oak Avenue Curepipe,ID789012345,2
-${adminLOB.toUpperCase()}-003,Bob Johnson,57111003,bob@example.com,7500.25,pending,2025-01-20,0,,${adminLOB},2024-12,Dr,,,789 Pine Road Flacq,ID345678901,3`
+    const template = `policy_number,name,mobile,email,amount_due,status,last_call_date,total_attempts,sales_agent_id,line_of_business,assigned_month,title_owner1,title_owner2,name_owner2,address,national_id,monthly_premium,national_id_owner2,branch_id
+${adminLOB.toUpperCase()}-001,John Doe,57111001,john@example.com,5000.00,pending,2025-01-20,0,SA001,${adminLOB},2024-10,Mr,,Jane Doe,123 Main Street Port Louis,ID123456789,250.00,ID987654321,1
+${adminLOB.toUpperCase()}-002,Jane Smith,57111002,jane@example.com,3500.50,pending,2025-01-20,0,SA002,${adminLOB},2024-11,Mrs,Mr,John Smith,456 Oak Avenue Curepipe,ID789012345,150.00,,2
+${adminLOB.toUpperCase()}-003,Bob Johnson,57111003,bob@example.com,7500.25,pending,2025-01-20,0,,${adminLOB},2024-12,Dr,,,789 Pine Road Flacq,ID345678901,400.00,,3`
     
     const blob = new Blob([template], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
@@ -626,6 +628,8 @@ ${adminLOB.toUpperCase()}-003,Bob Johnson,57111003,bob@example.com,7500.25,pendi
                 <li><strong>name_owner2</strong> - Second owner name</li>
                 <li><strong>address</strong> - Full address</li>
                 <li><strong>national_id</strong> - National ID number</li>
+                <li><strong>monthly_premium</strong> - Monthly premium amount (number, e.g., 250.00)</li>
+                <li><strong>national_id_owner2</strong> - Second owner national ID</li>
                 <li><strong>branch_id</strong> - Branch number (1-6)</li>
               </ul>
             </div>

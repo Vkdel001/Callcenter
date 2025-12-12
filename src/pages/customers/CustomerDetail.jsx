@@ -412,10 +412,17 @@ const CustomerDetail = () => {
       return
     }
 
-    // Find the next due installment
+    // Find the next due installment (prioritize by installment number, then by due date)
     const nextInstallment = pendingInstallments
       .filter(i => i.status === 'pending')
-      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0]
+      .sort((a, b) => {
+        // First sort by installment number (ascending)
+        const installmentDiff = (a.installment_number || 0) - (b.installment_number || 0)
+        if (installmentDiff !== 0) return installmentDiff
+        
+        // If installment numbers are the same, sort by due date
+        return new Date(a.due_date) - new Date(b.due_date)
+      })[0]
 
     if (!nextInstallment) {
       alert('No pending installments found')
@@ -750,6 +757,13 @@ const CustomerDetail = () => {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-700">Monthly Premium</label>
+                <p className="mt-1 text-sm font-semibold text-blue-600">
+                  {customer.monthly_premium ? formatCurrency(customer.monthly_premium) : 'Not specified'}
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700">Status</label>
                 <div className="flex items-center space-x-2 mt-1">
                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${customer.status === 'pending'
@@ -783,6 +797,13 @@ const CustomerDetail = () => {
                   )}
                 </div>
               </div>
+
+              {customer.national_id_owner2 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Second Owner NID</label>
+                  <p className="mt-1 text-sm text-gray-900">{customer.national_id_owner2}</p>
+                </div>
+              )}
             </div>
           </div>
 

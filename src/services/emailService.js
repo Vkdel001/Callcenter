@@ -470,7 +470,7 @@ This is an automated message. Please do not reply to this email.
     })
   }
   // Send AOD PDF via email
-  async sendAODEmail(customer, aodData, pdfBlob, installments = []) {
+  async sendAODEmail(customer, aodData, pdfBlob, installments = [], agent = null) {
     try {
       // Convert PDF blob to base64 for attachment
       const pdfBase64 = await this.blobToBase64(pdfBlob)
@@ -484,7 +484,8 @@ This is an automated message. Please do not reply to this email.
         type: 'application/pdf'
       }
 
-      return await this.sendTransactionalEmail({
+      // Prepare email options
+      const emailOptions = {
         to: {
           email: customer.email,
           name: customer.name
@@ -493,7 +494,17 @@ This is an automated message. Please do not reply to this email.
         htmlContent,
         textContent,
         attachments: [attachment]
-      })
+      }
+
+      // Add CC for logged-in agent
+      if (agent && agent.email) {
+        emailOptions.cc = [{
+          email: agent.email,
+          name: agent.name || 'Agent'
+        }]
+      }
+
+      return await this.sendTransactionalEmail(emailOptions)
     } catch (error) {
       console.error('AOD email sending failed:', error)
       return {
@@ -779,12 +790,13 @@ This is an automated message. Please do not reply to this email.
   }
 
   // Send installment reminder email
-  async sendInstallmentReminderEmail(customer, installment, paymentPlan, reminderUrl) {
+  async sendInstallmentReminderEmail(customer, installment, paymentPlan, reminderUrl, agent = null) {
     try {
       const htmlContent = this.generateInstallmentReminderHTML(customer, installment, paymentPlan, reminderUrl)
       const textContent = this.generateInstallmentReminderText(customer, installment, paymentPlan, reminderUrl)
 
-      return await this.sendTransactionalEmail({
+      // Prepare email options
+      const emailOptions = {
         to: {
           email: customer.email,
           name: customer.name
@@ -792,7 +804,17 @@ This is an automated message. Please do not reply to this email.
         subject: `Payment Reminder - Installment ${installment.installment_number} Due`,
         htmlContent,
         textContent
-      })
+      }
+
+      // Add CC for the agent who created the AOD
+      if (agent && agent.email) {
+        emailOptions.cc = [{
+          email: agent.email,
+          name: agent.name || 'Agent'
+        }]
+      }
+
+      return await this.sendTransactionalEmail(emailOptions)
     } catch (error) {
       console.error('Installment reminder email failed:', error)
       return {
@@ -832,7 +854,7 @@ This is an automated message. Please do not reply to this email.
   }
 
   // Send both email and SMS reminder
-  async sendInstallmentReminder(customer, installment, paymentPlan, reminderUrl) {
+  async sendInstallmentReminder(customer, installment, paymentPlan, reminderUrl, agent = null) {
     const results = {
       email: { success: false },
       sms: { success: false }
@@ -840,7 +862,7 @@ This is an automated message. Please do not reply to this email.
 
     // Send email reminder
     if (customer.email) {
-      results.email = await this.sendInstallmentReminderEmail(customer, installment, paymentPlan, reminderUrl)
+      results.email = await this.sendInstallmentReminderEmail(customer, installment, paymentPlan, reminderUrl, agent)
     }
 
     // Send SMS reminder

@@ -224,10 +224,10 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
       const pdfBlob = await aodPdfService.getPdfBlob(createdPlan, fullCustomer, createdPlan.installments || [])
 
       // Send email with PDF attachment
-      const result = await emailService.sendAODEmail(fullCustomer, createdPlan, pdfBlob, createdPlan.installments || [])
+      const result = await emailService.sendAODEmail(fullCustomer, createdPlan, pdfBlob, createdPlan.installments || [], user)
 
       if (result.success) {
-        alert('AOD PDF emailed successfully to customer!')
+        alert('AOD PDF emailed successfully to customer! (You have been CC\'d)')
       } else {
         alert(`Failed to send email: ${result.error}`)
       }

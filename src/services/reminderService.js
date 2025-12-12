@@ -95,7 +95,14 @@ class ReminderService {
       return allInstallments.filter(installment => {
         const dueDate = new Date(installment.due_date)
         return dueDate >= today && dueDate <= thirtyDaysFromNow
-      }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+      }).sort((a, b) => {
+        // First sort by installment number (ascending) to prioritize earlier installments
+        const installmentDiff = (a.installment_number || 0) - (b.installment_number || 0)
+        if (installmentDiff !== 0) return installmentDiff
+        
+        // If installment numbers are the same, sort by due date
+        return new Date(a.due_date) - new Date(b.due_date)
+      })
     } catch (error) {
       console.error('Error fetching upcoming installments:', error)
       throw error
@@ -111,7 +118,14 @@ class ReminderService {
       return allInstallments.filter(installment => {
         const dueDate = new Date(installment.due_date)
         return dueDate < today
-      }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+      }).sort((a, b) => {
+        // First sort by installment number (ascending) to prioritize earlier installments
+        const installmentDiff = (a.installment_number || 0) - (b.installment_number || 0)
+        if (installmentDiff !== 0) return installmentDiff
+        
+        // If installment numbers are the same, sort by due date
+        return new Date(a.due_date) - new Date(b.due_date)
+      })
     } catch (error) {
       console.error('Error fetching overdue installments:', error)
       throw error
@@ -169,15 +183,70 @@ class ReminderService {
         throw new Error('Customer not found')
       }
 
+      // Get agent details for CC
+      let agent = null
+      if (paymentPlan.created_by_agent) {
+        try {
+          const { agentApi } = await import('./apiClient')
+          const agentResponse = await agentApi.get(`/nic_cc_agent/${paymentPlan.created_by_agent}`)
+          agent = agentResponse.data
+          console.log('Found agent for CC:', agent.name || agent.email)
+        } catch (agentError) {
+          console.warn('Could not fetch agent for CC:', agentError.message)
+          // Continue without agent CC - don't fail the reminder
+        }
+      }
+
       // Generate reminder URL
       const reminderUrl = this.generateReminderUrl(installmentId)
 
-      // Send reminder (email + SMS)
+      // Ensure installment has QR code - generate if missing
+      if (!installment.qr_code_url) {
+        console.log('Generating QR code for installment reminder...')
+        try {
+          const { qrService } = await import('./qrService')
+          
+          // Create customer data for QR generation
+          const qrCustomerData = {
+            name: customer.name,
+            email: customer.email,
+            mobile: customer.mobile,
+            policyNumber: paymentPlan.policy_number,
+            amountDue: installment.amount,
+            lineOfBusiness: customer.lineOfBusiness || 'life'
+          }
+          
+          const qrResult = await qrService.generatePaymentQR(qrCustomerData)
+          
+          if (qrResult.success) {
+            // Update installment with QR code
+            installment.qr_code_url = qrResult.qrCodeUrl
+            installment.qr_code_data = qrResult.qrData
+            
+            // Save QR code to database for future use
+            await installmentService.updateInstallment(installmentId, {
+              qr_code_url: qrResult.qrCodeUrl,
+              qr_code_data: qrResult.qrData,
+              zwennpay_reference: qrResult.reference
+            })
+            
+            console.log('✅ QR code generated and saved for installment')
+          } else {
+            console.warn('⚠️ Failed to generate QR code for installment:', qrResult.error)
+          }
+        } catch (qrError) {
+          console.error('❌ Error generating QR code for installment:', qrError)
+          // Continue without QR code - don't fail the reminder
+        }
+      }
+
+      // Send reminder (email + SMS) with agent CC
       const result = await emailService.sendInstallmentReminder(
         customer,
         installment,
         paymentPlan,
-        reminderUrl
+        reminderUrl,
+        agent
       )
 
       // Update reminder count
@@ -190,6 +259,7 @@ class ReminderService {
         installment,
         customer,
         paymentPlan,
+        agent,
         reminderResult: result
       }
     } catch (error) {

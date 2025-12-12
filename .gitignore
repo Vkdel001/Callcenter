@@ -134,3 +134,10 @@ uploads/
 
 # Nginx configuration (server-specific)
 nginx-*.conf
+
+# Test files (development and debugging)
+test-*.js
+test-*.html
+test-*.py
+test-*.csv
+test-*.json

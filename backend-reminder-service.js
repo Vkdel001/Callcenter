@@ -136,6 +136,24 @@ class XanoAPI {
       return [];
     }
   }
+
+  static async getPaymentPlans() {
+    try {
+      return await this.makeRequest(`${CONFIG.XANO_PAYMENT_API}/nic_cc_payment_plan`);
+    } catch (error) {
+      Logger.error('Failed to fetch payment plans', error);
+      return [];
+    }
+  }
+
+  static async getAgents() {
+    try {
+      return await this.makeRequest(`${CONFIG.XANO_CUSTOMER_API}/nic_cc_agent`);
+    } catch (error) {
+      Logger.error('Failed to fetch agents', error);
+      return [];
+    }
+  }
   
   static async updateCustomer(customerId, data) {
     try {
@@ -148,7 +166,7 @@ class XanoAPI {
 }
 
 class BrevoEmailService {
-  static async sendEmail(to, subject, htmlContent) {
+  static async sendEmail(to, subject, htmlContent, cc = null) {
     return new Promise((resolve, reject) => {
       const emailData = {
         sender: {
@@ -159,6 +177,14 @@ class BrevoEmailService {
         subject: subject,
         htmlContent: htmlContent
       };
+
+      // Add CC if provided
+      if (cc && cc.email) {
+        emailData.cc = [{ 
+          email: cc.email, 
+          name: cc.name || 'Agent' 
+        }];
+      }
       
       const postData = JSON.stringify(emailData);
       
@@ -184,12 +210,13 @@ class BrevoEmailService {
         
         res.on('end', () => {
           if (res.statusCode >= 200 && res.statusCode < 300) {
-            Logger.info('Email sent successfully', { to, subject });
+            Logger.info('Email sent successfully', { to, subject, cc: cc?.email });
             resolve({ success: true, response: responseData });
           } else {
             Logger.error('Email sending failed', { 
               to, 
               subject, 
+              cc: cc?.email,
               statusCode: res.statusCode, 
               response: responseData 
             });
@@ -199,7 +226,7 @@ class BrevoEmailService {
       });
       
       req.on('error', (error) => {
-        Logger.error('Email request failed', { to, subject, error: error.message });
+        Logger.error('Email request failed', { to, subject, cc: cc?.email, error: error.message });
         reject(error);
       });
       
@@ -222,6 +249,24 @@ class ReminderService {
     try {
       const customers = await XanoAPI.getCustomers();
       const installments = await XanoAPI.getInstallments();
+      const paymentPlans = await XanoAPI.getPaymentPlans();
+      const agents = await XanoAPI.getAgents();
+      
+      // Create lookup maps for better performance
+      const customerMap = {};
+      customers.forEach(customer => {
+        customerMap[customer.id] = customer;
+      });
+
+      const paymentPlanMap = {};
+      paymentPlans.forEach(plan => {
+        paymentPlanMap[plan.id] = plan;
+      });
+
+      const agentMap = {};
+      agents.forEach(agent => {
+        agentMap[agent.id] = agent;
+      });
       
       const overdueInstallments = installments.filter(installment => {
         const dueDate = new Date(installment.due_date);
@@ -234,10 +279,19 @@ class ReminderService {
       Logger.info(`Found ${overdueInstallments.length} overdue installments`);
       
       for (const installment of overdueInstallments) {
-        const customer = customers.find(c => c.id === installment.customer_id);
+        const customer = customerMap[installment.customer_id];
         
         if (customer && customer.email) {
-          await this.sendPaymentReminder(customer, installment);
+          // Get agent for CC
+          let agent = null;
+          if (installment.payment_plan && paymentPlanMap[installment.payment_plan]) {
+            const paymentPlan = paymentPlanMap[installment.payment_plan];
+            if (paymentPlan.created_by_agent && agentMap[paymentPlan.created_by_agent]) {
+              agent = agentMap[paymentPlan.created_by_agent];
+            }
+          }
+
+          await this.sendPaymentReminder(customer, installment, agent);
           
           // Update reminder count
           const reminderCount = (customer.reminder_count || 0) + 1;
@@ -302,7 +356,7 @@ class ReminderService {
     }
   }
   
-  static async sendPaymentReminder(customer, installment) {
+  static async sendPaymentReminder(customer, installment, agent = null) {
     const subject = `Payment Reminder - NIC Life Insurance`;
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -315,12 +369,13 @@ class ReminderService {
           <p><strong>Amount Due:</strong> MUR ${installment.amount}</p>
           <p><strong>Due Date:</strong> ${new Date(installment.due_date).toLocaleDateString()}</p>
           <p><strong>Policy Number:</strong> ${customer.policy_number || 'N/A'}</p>
+          <p><strong>Installment:</strong> ${installment.installment_number || 'N/A'}</p>
         </div>
         
         <p>Please make your payment as soon as possible to avoid any service interruption.</p>
         
         <p>If you have any questions, please contact us at:</p>
-        <p>📞 Phone: +230-your-phone<br>
+        <p>📞 Phone: +230-602-3315<br>
         📧 Email: ${CONFIG.SENDER_EMAIL}</p>
         
         <p>Thank you for your attention to this matter.</p>
@@ -331,11 +386,12 @@ class ReminderService {
     `;
     
     try {
-      await BrevoEmailService.sendEmail(customer.email, subject, htmlContent);
+      await BrevoEmailService.sendEmail(customer.email, subject, htmlContent, agent);
       Logger.info('Payment reminder sent', { 
         customerId: customer.id, 
         email: customer.email,
-        installmentId: installment.id 
+        installmentId: installment.id,
+        agentCC: agent?.email || 'none'
       });
     } catch (error) {
       Logger.error('Failed to send payment reminder', { 

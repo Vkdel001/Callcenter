@@ -13,17 +13,129 @@ class AODPdfService {
   async generateAODPdf(aodData, customer, installments = []) {
     const pdf = new jsPDF('p', 'mm', 'a4')
     
-    // Generate Page 1 (Front)
-    this.generatePage1(pdf, aodData, customer, installments)
+    // Generate Consent Form (Page 1)
+    await this.generateConsentFormPage(pdf, customer)
     
-    // Add Page 2 (Back)
+    // Add AOD Page 1 (now Page 2)
+    pdf.addPage()
+    await this.generatePage1(pdf, aodData, customer, installments)
+    
+    // Add AOD Page 2 (now Page 3)
     pdf.addPage()
     this.generatePage2(pdf, aodData, customer)
     
     return pdf
   }
 
-  generatePage1(pdf, aodData, customer, installments) {
+  async generateConsentFormPage(pdf, customer) {
+    let yPos = this.margin
+
+    // Use the helper method for consistent logo loading
+    const logoLoaded = await this.loadNICLogo(pdf, this.pageWidth / 2 - 21, yPos, 42, 21)
+    
+    if (logoLoaded) {
+      yPos += 30
+    } else {
+      // Fallback to text logo (without "General Insurance")
+      pdf.setFontSize(24)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(0, 51, 102)
+      pdf.text('NIC', this.pageWidth / 2, yPos + 8, { align: 'center' })
+      
+      pdf.setFontSize(11)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(0, 0, 0)
+      pdf.text('NATIONAL INSURANCE COMPANY', this.pageWidth / 2, yPos + 15, { align: 'center' })
+      yPos += 30
+    }
+
+    // Title
+    pdf.setFontSize(14)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(0, 0, 0)
+    pdf.text('CONSENT FORM FOR THE USE OF EMAIL', this.pageWidth / 2, yPos, { align: 'center' })
+    yPos += 15
+
+    // Introduction paragraph
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    const introText = 'Transmitting personal information through email has a number of risks to be considered.'
+    pdf.text(introText, this.pageWidth / 2, yPos, { align: 'center' })
+    yPos += 15
+
+    // Main content paragraphs
+    const paragraphs = [
+      'Upon your agreement, the NIC General Insurance Co. Ltd may use email to communicate with you, and the email may contain your personal information.',
+      
+      'In accordance with the Data Protection Act 2004, NIC General Insurance Co. Ltd undertakes to take all reasonable measures to avoid unauthorized use or alteration of data collected and treat the data as confidential.'
+    ]
+
+    paragraphs.forEach(paragraph => {
+      const lines = pdf.splitTextToSize(paragraph, this.contentWidth)
+      pdf.text(lines, this.margin, yPos)
+      yPos += lines.length * 5 + 8
+    })
+
+    // Bullet points
+    const bulletPoints = [
+      'I/We understand that there are risks associated with communicating through emails between NIC General Insurance Co. Ltd and myself/ourselves, and by signing this consent form, I/We permit NIC General Insurance Co. Ltd to communicate with me/us through the email address(es) provided on the Proposal Form.',
+      
+      'I/We understand that I/we may revoke this consent by giving written notice to NIC General Insurance Co. Ltd.',
+      
+      'I/We agree to inform NIC General Insurance Co. Ltd, from time to time, of changes in my/our email address(es).',
+      
+      'I/We agree that emails sent by NIC General Insurance Co. Ltd will not require formal signatures.',
+      
+      'I/We acknowledge that I/we have read and fully understand this email consent form.'
+    ]
+
+    bulletPoints.forEach(point => {
+      pdf.text('•', this.margin, yPos)
+      const lines = pdf.splitTextToSize(point, this.contentWidth - 10)
+      pdf.text(lines, this.margin + 5, yPos)
+      yPos += lines.length * 5 + 6
+    })
+
+    yPos += 20
+
+    // Signature section
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    
+    // Name of Proposer
+    pdf.text('Name of Proposer', this.margin, yPos)
+    pdf.text(': ................................................................', this.margin + 40, yPos)
+    yPos += 15
+
+    // Signature
+    pdf.text('Signature', this.margin, yPos)
+    pdf.text(': ................................................................', this.margin + 40, yPos)
+    yPos += 15
+
+    // Date
+    pdf.text('Date', this.margin, yPos)
+    pdf.text(': ................................................................', this.margin + 40, yPos)
+    yPos += 30
+
+    // Footer
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(100, 100, 100)
+    
+    const footerText = [
+      'NIC General Insurance Co. Ltd, NIC Centre, 217 Royal Road, Curepipe, Republic of Mauritius',
+      'T: (+230) 602 5000 • F: (+230) 676 1284 • Email: customerservice@nicl.mu • Web: www.nicl.mu',
+      'Business Registration Number: C15123640'
+    ]
+
+    footerText.forEach((line, index) => {
+      pdf.text(line, this.pageWidth / 2, this.pageHeight - 25 + (index * 4), { align: 'center' })
+    })
+
+    pdf.setTextColor(0, 0, 0) // Reset color
+  }
+
+  async generatePage1(pdf, aodData, customer, installments) {
     let yPos = this.margin
 
     // Debug: Log customer data to see what fields are available
@@ -34,11 +146,12 @@ class AODPdfService {
       address: customer.address,
       name_owner2: customer.name_owner2,
       title_owner2: customer.title_owner2,
-      national_id_owner2: customer.national_id_owner2
+      national_id_owner2: customer.national_id_owner2,
+      monthly_premium: customer.monthly_premium
     })
 
     // Professional Header with NIC Logo - Very compact
-    this.addHeader(pdf, yPos)
+    await this.addHeader(pdf, yPos)
     yPos += 30
 
     // Title Section
@@ -50,33 +163,64 @@ class AODPdfService {
     yPos += 5
 
     // Agreement Sections
-    yPos = this.addAgreementSections(pdf, aodData, yPos)
+    yPos = this.addAgreementSections(pdf, aodData, customer, yPos)
     yPos += 5
 
     // Payment Method Section
     this.addPaymentMethodSection(pdf, aodData, yPos, installments)
   }
 
-  addHeader(pdf, yPos) {
-    // NIC Logo and Company Info - More compact
-    pdf.setFontSize(24)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor(0, 51, 102) // Dark blue
-    pdf.text('NIC', this.pageWidth / 2, yPos + 8, { align: 'center' })
+  // Helper method for consistent logo loading
+  async loadNICLogo(pdf, x, y, width, height) {
+    try {
+      const logoPaths = ['./NIC_LOGO.png', '/NIC_LOGO.png', 'NIC_LOGO.png', './public/NIC_LOGO.png']
+      
+      for (const logoPath of logoPaths) {
+        try {
+          pdf.addImage(logoPath, 'PNG', x, y, width, height)
+          return true // Logo loaded successfully
+        } catch (pathError) {
+          console.log(`Logo path ${logoPath} failed, trying next...`)
+        }
+      }
+      
+      throw new Error('All logo paths failed')
+    } catch (error) {
+      console.warn('Could not load NIC logo from any path:', error)
+      return false // Logo loading failed
+    }
+  }
+
+  async addHeader(pdf, yPos) {
+    // Try to load NIC Logo first
+    const logoLoaded = await this.loadNICLogo(pdf, this.pageWidth / 2 - 21, yPos, 42, 21)
     
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(0, 0, 0)
-    pdf.text('NATIONAL INSURANCE COMPANY', this.pageWidth / 2, yPos + 15, { align: 'center' })
-    
-    pdf.setFontSize(9)
-    pdf.setTextColor(100, 100, 100)
-    pdf.text('Life & Pensions', this.pageWidth / 2, yPos + 21, { align: 'center' })
-    
-    // Decorative line
-    pdf.setDrawColor(0, 51, 102)
-    pdf.setLineWidth(0.5)
-    pdf.line(this.margin + 30, yPos + 25, this.pageWidth - this.margin - 30, yPos + 25)
+    if (logoLoaded) {
+      // Logo loaded successfully - just add the decorative line below
+      pdf.setDrawColor(0, 51, 102)
+      pdf.setLineWidth(0.5)
+      pdf.line(this.margin + 30, yPos + 25, this.pageWidth - this.margin - 30, yPos + 25)
+    } else {
+      // Fallback to text header (same as before)
+      pdf.setFontSize(24)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(0, 51, 102) // Dark blue
+      pdf.text('NIC', this.pageWidth / 2, yPos + 8, { align: 'center' })
+      
+      pdf.setFontSize(11)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(0, 0, 0)
+      pdf.text('NATIONAL INSURANCE COMPANY', this.pageWidth / 2, yPos + 15, { align: 'center' })
+      
+      pdf.setFontSize(9)
+      pdf.setTextColor(100, 100, 100)
+      pdf.text('Life & Pensions', this.pageWidth / 2, yPos + 21, { align: 'center' })
+      
+      // Decorative line
+      pdf.setDrawColor(0, 51, 102)
+      pdf.setLineWidth(0.5)
+      pdf.line(this.margin + 30, yPos + 25, this.pageWidth - this.margin - 30, yPos + 25)
+    }
   }
 
   addTitle(pdf, yPos) {
@@ -137,7 +281,7 @@ class AODPdfService {
     pdf.text(owner1Lines, this.margin, yPos, { maxWidth: this.contentWidth, align: 'justify' })
     yPos += owner1Lines.length * this.lineHeight + 2
 
-    // Owner 2 (Secondary) - Show actual data if exists, otherwise blank lines
+    // Owner 2 (Secondary) - Only show if name_owner2 has a value
     if (customer.name_owner2 && customer.name_owner2.trim() !== '') {
       // Second owner exists - use actual data
       const title2 = customer.title_owner2 || 'Mr/Mrs/Ms'
@@ -149,11 +293,8 @@ class AODPdfService {
       const owner2Lines = pdf.splitTextToSize(owner2Text, this.contentWidth)
       pdf.text(owner2Lines, this.margin, yPos, { maxWidth: this.contentWidth, align: 'justify' })
       yPos += owner2Lines.length * this.lineHeight + 2
-    } else {
-      // No second owner - show blank lines for manual filling as one continuous line
-      pdf.text('and Mr/Mrs/Ms _________________________ holder of National Identity Card No. ________________, residing at _________________________________', this.margin, yPos)
-      yPos += this.lineHeight + 2
     }
+    // Note: No else clause - if no name_owner2, don't show second owner section at all
 
     // Policy Owner reference - More compact
     pdf.setFont('helvetica', 'italic')
@@ -173,7 +314,7 @@ class AODPdfService {
     return yPos
   }
 
-  addAgreementSections(pdf, aodData, yPos) {
+  addAgreementSections(pdf, aodData, customer, yPos) {
     // Agreement intro - More compact
     pdf.setFont('helvetica', 'normal')
     pdf.text('The Parties have reached an agreement with respect to the following:', this.margin, yPos)
@@ -189,7 +330,13 @@ class AODPdfService {
     const amount = aodData.outstanding_amount?.toLocaleString() || '0'
     const policyNo = aodData.policy_number || ''
     
-    const ackText = `The Policy Owner owes an amount of MUR ${amount} representing the outstanding premium amount for the Insurance Policy No ${policyNo}.`
+    let ackText = `The Policy Owner owes an amount of MUR ${amount} representing the outstanding premium amount for the Insurance Policy No ${policyNo}.`
+    
+    // Add monthly premium information if available
+    if (customer.monthly_premium) {
+      ackText += ` The monthly premium for this policy is MUR ${customer.monthly_premium.toLocaleString()}.`
+    }
+    
     const ackLines = pdf.splitTextToSize(ackText, this.contentWidth - 15)
     pdf.text(ackLines, this.margin + 8, yPos)
     yPos += ackLines.length * this.lineHeight + this.lineHeight + 2

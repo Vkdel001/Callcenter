@@ -173,20 +173,29 @@ class AODPdfService {
   // Helper method for consistent logo loading
   async loadNICLogo(pdf, x, y, width, height) {
     try {
-      const logoPaths = ['./NIC_LOGO.png', '/NIC_LOGO.png', 'NIC_LOGO.png', './public/NIC_LOGO.png']
+      // Web-accessible paths for deployed application
+      const logoPaths = [
+        '/NIC_LOGO.png',                    // Public root
+        '/images/NIC_LOGO.png',             // Public images folder
+        './public/NIC_LOGO.png',            // Local development
+        './NIC_LOGO.png',                   // Root directory
+        'NIC_LOGO.png',                     // Relative path
+        '/public/NIC_LOGO.png'              // Alternative public path
+      ]
       
       for (const logoPath of logoPaths) {
         try {
           pdf.addImage(logoPath, 'PNG', x, y, width, height)
+          console.log(`✅ Logo loaded successfully from: ${logoPath}`)
           return true // Logo loaded successfully
         } catch (pathError) {
-          console.log(`Logo path ${logoPath} failed, trying next...`)
+          console.log(`❌ Logo path ${logoPath} failed, trying next...`)
         }
       }
       
       throw new Error('All logo paths failed')
     } catch (error) {
-      console.warn('Could not load NIC logo from any path:', error)
+      console.warn('⚠️ Could not load NIC logo from any path:', error)
       return false // Logo loading failed
     }
   }

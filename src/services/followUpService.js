@@ -58,36 +58,12 @@ class FollowUpService {
         customerMap[customer.id] = customer
       })
       
-      // Filter call logs based on agent type and access permissions
-      let relevantCallLogs = []
+      // Simple user-specific filtering: ALL users only see their own follow-ups
+      const relevantCallLogs = allCallLogs.filter(log => 
+        log.agent === parseInt(agentId) && log.next_follow_up
+      )
       
-      if (agentType === 'sales_agent') {
-        // Sales agents: only their own call logs
-        relevantCallLogs = allCallLogs.filter(log => 
-          log.agent === parseInt(agentId) && log.next_follow_up
-        )
-        console.log(`🎯 Sales agent ${agentId} - filtered logs:`, relevantCallLogs.length)
-      } else if (agentType === 'csr') {
-        // CSR agents: all call logs except branch 6 (call center exclusive)
-        relevantCallLogs = allCallLogs.filter(log => {
-          if (!log.next_follow_up) return false
-          const customer = customerMap[log.customer]
-          return customer && customer.branch_id !== 6
-        })
-        console.log(`🎯 CSR agent - filtered logs:`, relevantCallLogs.length)
-      } else if (agentType === 'internal') {
-        // Internal agents: only their branch (filter by customer's branch)
-        relevantCallLogs = allCallLogs.filter(log => {
-          if (!log.next_follow_up) return false
-          const customer = customerMap[log.customer]
-          return customer && customer.branch_id === parseInt(branchId)
-        })
-        console.log(`🎯 Internal agent branch ${branchId} - filtered logs:`, relevantCallLogs.length)
-      } else {
-        // Call center agents: all call logs
-        relevantCallLogs = allCallLogs.filter(log => log.next_follow_up)
-        console.log(`🎯 Call center agent - filtered logs:`, relevantCallLogs.length)
-      }
+      console.log(`🎯 User ${agentId} - own follow-ups found:`, relevantCallLogs.length)
       
       // Debug: Show what we found
       console.log('🔍 Agent type:', agentType, 'Agent ID:', agentId, 'Branch ID:', branchId)

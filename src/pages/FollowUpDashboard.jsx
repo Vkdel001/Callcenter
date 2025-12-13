@@ -122,9 +122,9 @@ const FollowUpDashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Follow-Up Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">My Follow-Ups</h1>
           <p className="text-gray-600 mt-1">
-            Manage your customer follow-up queue and never miss a commitment
+            Your personal follow-up queue - manage customer commitments you've scheduled
           </p>
         </div>
         <button
@@ -229,8 +229,8 @@ const FollowUpDashboard = () => {
               <h3 className="mt-2 text-sm font-medium text-gray-900">No follow-ups</h3>
               <p className="mt-1 text-sm text-gray-500">
                 {selectedCategory === 'urgent' 
-                  ? 'Great! No urgent follow-ups at the moment.'
-                  : `No follow-ups in the ${selectedCategory} category.`
+                  ? 'Great! You have no urgent follow-ups at the moment.'
+                  : `You have no follow-ups in the ${selectedCategory} category.`
                 }
               </p>
             </div>

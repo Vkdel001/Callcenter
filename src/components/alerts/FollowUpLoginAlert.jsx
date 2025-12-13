@@ -39,13 +39,13 @@ const FollowUpLoginAlert = ({ isOpen, onClose, alertSummary }) => {
 
           {/* Title */}
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Urgent Follow-Ups Pending
+            Your Urgent Follow-Ups
           </h3>
 
           {/* Message */}
           <div className="mb-6">
             <p className="text-sm text-gray-600 mb-4">
-              You have <span className="font-semibold text-orange-600">{urgentCount}</span> urgent follow-ups that need your attention.
+              You have <span className="font-semibold text-orange-600">{urgentCount}</span> urgent follow-ups from your call logs that need attention.
             </p>
 
             {/* Breakdown */}
@@ -102,7 +102,7 @@ const FollowUpLoginAlert = ({ isOpen, onClose, alertSummary }) => {
 
           {/* Footer note */}
           <p className="text-xs text-gray-500 mt-4">
-            Stay on top of your customer commitments to improve service quality and collection rates.
+            These are follow-ups from call logs you created. Stay on top of your customer commitments.
           </p>
         </div>
       </div>

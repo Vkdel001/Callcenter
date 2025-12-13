@@ -1,18 +1,31 @@
 # VPS Backend Reminder Service - Deployment Guide
 
-## Current Service Status Analysis
+## ⚠️ IMPORTANT: Systemd Service Management
 
-Based on your process output:
+**CRITICAL DISCOVERY**: The backend reminder service is managed by **systemd**, not manual processes!
+
+**Service Details:**
+- **Service Name**: `nic-reminder.service`
+- **Service File**: `/etc/systemd/system/nic-reminder.service`
+- **Status**: `loaded active running NIC Call Center Reminder Service`
+- **Management**: Use `systemctl` commands, NOT manual `nohup` commands
+
+## 🔍 Service Discovery Commands
+
 ```bash
-www-data 1081338  0.0  3.0 850612 61224 ?        Ssl  14:10   0:01 /usr/bin/node /var/www/nic-callcenter/backend-reminder-service.cjs
+# Check if systemd services exist
+sudo systemctl list-units --type=service | grep -i reminder
+sudo systemctl list-units --type=service | grep -i nic
+
+# Find service files
+sudo find /etc/systemd/system/ -name "*reminder*" -o -name "*nic*"
 ```
 
-**Current Setup:**
-- **Process ID**: 1081338
-- **User**: www-data
-- **File**: `/var/www/nic-callcenter/backend-reminder-service.cjs`
-- **Status**: Running since 14:10
-- **Memory**: 61MB (normal for Node.js service)
+**Expected Output:**
+```
+nic-reminder.service                           loaded active running NIC Call Center Reminder Service
+/etc/systemd/system/nic-reminder.service
+```
 
 ## 🔍 How to Check Logs
 
@@ -56,13 +69,36 @@ ls -la /var/www/nic-callcenter/*.log
 ls -la /var/www/nic-callcenter/logs/
 ```
 
-## 🚀 Deployment Process for Updated Service
+## 🚀 CRITICAL: Deployment Process for Updated Service
 
-### Step 1: Backup Current Service
+### ⚠️ IMPORTANT: Stop ALL Running Processes First
+
+**The issue you're experiencing is due to multiple processes running simultaneously. You must stop ALL processes before starting the new one.**
+
+### Step 1: Stop ALL Running Processes
 ```bash
 # Navigate to application directory
 cd /var/www/nic-callcenter
 
+# Kill ALL backend-reminder-service processes
+sudo pkill -f backend-reminder-service
+
+# Wait for graceful shutdown
+sleep 5
+
+# Verify NO processes are running
+ps aux | grep backend-reminder-service | grep -v grep
+# This should return NOTHING
+
+# If processes still exist, force kill them
+sudo pkill -9 -f backend-reminder-service
+
+# Double check - this should be empty
+ps aux | grep backend-reminder-service | grep -v grep
+```
+
+### Step 2: Backup Current Service
+```bash
 # Create backup of current service
 sudo cp backend-reminder-service.cjs backend-reminder-service.cjs.backup.$(date +%Y%m%d_%H%M%S)
 
@@ -70,54 +106,78 @@ sudo cp backend-reminder-service.cjs backend-reminder-service.cjs.backup.$(date 
 ls -la backend-reminder-service.cjs.backup.*
 ```
 
-### Step 2: Update the Service File
+### Step 3: Deploy Fixed Service
 ```bash
-# Copy new service file from your development
-# Option A: If you have the updated .js file locally
-sudo cp backend-reminder-service.js backend-reminder-service.cjs
+# Copy the FIXED version (this is the key!)
+sudo cp backend-reminder-service-fixed.cjs backend-reminder-service.cjs
 
-# Option B: If pulling from Git
-git pull origin main
-sudo cp backend-reminder-service.js backend-reminder-service.cjs
+# Verify the file was updated - should show "Fixed Version" in header
+head -n 10 backend-reminder-service.cjs
 
-# Verify the file was updated
-ls -la backend-reminder-service.cjs
-head -n 20 backend-reminder-service.cjs
+# Check file size - fixed version should be larger
+ls -la backend-reminder-service*
 ```
 
-### Step 3: Restart the Service
+### Step 4: Start SINGLE New Process
 ```bash
-# Find the current process ID
-ps aux | grep backend-reminder-service | grep -v grep
+# Clear the log file to start fresh
+sudo truncate -s 0 /var/log/nic-reminder-service.log
 
-# Kill the current process (replace 1081338 with actual PID)
-sudo kill 1081338
-
-# Wait a moment for graceful shutdown
-sleep 3
-
-# Verify process is stopped
-ps aux | grep backend-reminder-service | grep -v grep
-
-# Start the new service
-cd /var/www/nic-callcenter
+# Start the new service (ONLY ONE PROCESS)
 sudo -u www-data nohup /usr/bin/node backend-reminder-service.cjs > /var/log/nic-reminder-service.log 2>&1 &
 
-# Verify new process is running
+# Wait for startup
+sleep 3
+
+# Verify ONLY ONE process is running
 ps aux | grep backend-reminder-service | grep -v grep
+# Should show EXACTLY ONE process
+
+# Check startup logs
+tail -n 20 /var/log/nic-reminder-service.log
 ```
 
-### Step 4: Verify New Service is Working
+### Step 5: Verify New Service is Working
 ```bash
-# Check if process started successfully
+# Check if EXACTLY ONE process is running
 ps aux | grep backend-reminder-service | grep -v grep
+# Should show exactly one line with "Fixed Version" features
 
-# Check logs for startup messages
+# Check logs for startup messages - should show "Fixed Version"
 tail -n 20 /var/log/nic-reminder-service.log
+
+# Look for key indicators of the fixed version
+grep -i "fixed version\|agent.*cc\|features.*agent_cc" /var/log/nic-reminder-service.log
 
 # Monitor for a few minutes to ensure stability
 tail -f /var/log/nic-reminder-service.log
 # Press Ctrl+C to stop following
+
+# Test that it's processing correctly (wait for next cycle)
+# Should see logs like:
+# [INFO] Starting NIC Reminder Service (Fixed Version)...
+# [INFO] Data fetched successfully { customersCount: X, agentsCount: Y }
+# [INFO] Payment reminder sent { agentCC: 'agent@email.com', qrCodeIncluded: 'yes' }
+```
+
+### Step 6: Verify Agent CC and QR Features
+```bash
+# Wait for the next reminder cycle (up to 30 minutes) or trigger manually
+# Look for these specific log entries that confirm the fix:
+
+# 1. Service startup with fixed version
+grep -i "fixed version" /var/log/nic-reminder-service.log
+
+# 2. Agent data being fetched
+grep -i "agentsCount" /var/log/nic-reminder-service.log
+
+# 3. Agent CC being included in emails
+grep -i "agentCC.*@" /var/log/nic-reminder-service.log
+
+# 4. QR codes being included
+grep -i "qrCodeIncluded.*yes" /var/log/nic-reminder-service.log
+
+# If you don't see these, the old version is still running!
 ```
 
 ## 🔧 Service Management Commands

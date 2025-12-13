@@ -181,7 +181,57 @@ class XanoAPI {
 }
 
 class BrevoEmailService {
-  static async sendEmail(to, subject, htmlContent, cc = null) {
+  // Convert image URL to base64 for Gmail compatibility
+  static async urlToBase64(url) {
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(url);
+      const protocol = urlObj.protocol === 'https:' ? https : http;
+      
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET'
+      };
+
+      const req = protocol.request(options, (res) => {
+        const chunks = [];
+        
+        res.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+        
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const buffer = Buffer.concat(chunks);
+            const base64 = buffer.toString('base64');
+            Logger.debug('QR code converted to base64 successfully', { 
+              url: url.substring(0, 50) + '...', 
+              base64Length: base64.length 
+            });
+            resolve(base64);
+          } else {
+            Logger.error('Failed to fetch QR image', { url, statusCode: res.statusCode });
+            reject(new Error(`Failed to fetch image: ${res.statusCode}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        Logger.error('QR image fetch request failed', { url, error: error.message });
+        reject(error);
+      });
+
+      req.setTimeout(10000, () => {
+        req.destroy();
+        reject(new Error('QR image fetch timeout'));
+      });
+
+      req.end();
+    });
+  }
+
+  static async sendEmail(to, subject, htmlContent, cc = null, attachments = []) {
     return new Promise((resolve, reject) => {
       const emailData = {
         sender: {
@@ -199,6 +249,11 @@ class BrevoEmailService {
           email: cc.email, 
           name: cc.name || 'Agent' 
         }];
+      }
+
+      // Add attachments for Gmail compatibility (CID references)
+      if (attachments && attachments.length > 0) {
+        emailData.attachment = attachments;
       }
 
       const postData = JSON.stringify(emailData);
@@ -441,7 +496,7 @@ class ReminderService {
     }
   }
 
-  static generateQRSection(customer, installment) {
+  static generateQRSection(customer, installment, qrImageSrc = null) {
     // Use existing QR code from database (generated when installment was created)
     if (installment.qr_code_url) {
       Logger.debug('Using existing QR code from database', { 
@@ -450,13 +505,25 @@ class ReminderService {
         qrCodeUrl: installment.qr_code_url
       });
       
+      // Use CID reference or fallback to external URL (same pattern as frontend)
+      const qrSrc = qrImageSrc || installment.qr_code_url;
+      const isGmailCompatible = qrImageSrc && qrImageSrc.startsWith('cid:');
+      
       return `
       <div style="text-align: center; margin: 20px 0; background: white; padding: 20px; border-radius: 8px; border: 2px solid #e5e7eb;">
         <h3 style="margin-top: 0; color: #1e3a8a;">Quick Payment via QR Code</h3>
-        <img src="${installment.qr_code_url}" alt="Payment QR Code" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;">
+        <img src="${qrSrc}" alt="Payment QR Code" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;">
         <p style="margin: 15px 0 5px 0; font-size: 14px; color: #666;">
           Scan this QR code with your mobile banking app to pay instantly
         </p>
+        <div style="background: ${isGmailCompatible ? '#e8f5e8' : '#fff3cd'}; padding: 8px; border-radius: 4px; margin: 10px 0;">
+          <p style="font-size: 11px; color: ${isGmailCompatible ? '#2d5a2d' : '#856404'}; margin: 0;">
+            ${isGmailCompatible ? 
+              '✅ This QR code works in ALL email clients including Gmail' : 
+              '📧 Gmail users: Click "Display images" at the top of this email to see the QR code'
+            }
+          </p>
+        </div>
         <p style="font-size: 12px; color: #666;">Powered by ZwennPay</p>
       </div>
       `;
@@ -478,6 +545,45 @@ class ReminderService {
     const daysUntilDue = Math.ceil((new Date(installment.due_date) - new Date()) / (1000 * 60 * 60 * 24));
     const statusText = daysUntilDue === 7 ? 'DUE IN 7 DAYS' : daysUntilDue === 3 ? 'DUE IN 3 DAYS' : 'DUE SOON';
     const statusColor = daysUntilDue === 3 ? '#dc2626' : '#f59e0b';
+
+    // Apply Gmail QR compatibility fix (same pattern as frontend)
+    let qrBase64 = null;
+    let attachments = [];
+    
+    if (installment.qr_code_url) {
+      try {
+        Logger.info('🔄 Converting QR code for Gmail compatibility...', {
+          customerId: customer.id,
+          installmentId: installment.id
+        });
+        
+        // If it's already a data URL, extract the base64 part
+        if (installment.qr_code_url.startsWith('data:image')) {
+          qrBase64 = installment.qr_code_url.split(',')[1];
+        } else {
+          // Otherwise, fetch and convert to base64 (same as frontend method)
+          qrBase64 = await BrevoEmailService.urlToBase64(installment.qr_code_url);
+        }
+        
+        // Add as inline attachment with CID (same as frontend method)
+        attachments.push({
+          name: 'qr-code.png',
+          content: qrBase64,
+          type: 'image/png'
+        });
+        
+        Logger.info('✅ QR code converted to CID attachment for Gmail', {
+          customerId: customer.id,
+          installmentId: installment.id
+        });
+      } catch (error) {
+        Logger.warn('⚠️ Failed to convert QR to base64, using URL fallback', {
+          customerId: customer.id,
+          installmentId: installment.id,
+          error: error.message
+        });
+      }
+    }
     
     const htmlContent = `
       <!DOCTYPE html>
@@ -526,7 +632,7 @@ class ReminderService {
 
             <div class="amount">MUR ${installment.amount.toLocaleString()}</div>
             
-            ${this.generateQRSection(customer, installment)}
+            ${this.generateQRSection(customer, installment, qrBase64 ? 'cid:qr-code.png' : null)}
             
             <div style="text-align: center; margin: 30px 0;">
               ${installment.qr_code_url ? `
@@ -567,13 +673,14 @@ class ReminderService {
     `;
 
     try {
-      await BrevoEmailService.sendEmail(customer.email, subject, htmlContent, agent);
+      await BrevoEmailService.sendEmail(customer.email, subject, htmlContent, agent, attachments);
       Logger.info('Payment reminder sent successfully', {
         customerId: customer.id,
         email: customer.email,
         installmentId: installment.id,
         agentCC: agent?.email || 'none',
-        qrCodeIncluded: installment.qr_code_url ? 'yes' : 'no'
+        qrCodeIncluded: installment.qr_code_url ? 'yes' : 'no',
+        gmailCompatible: qrBase64 ? 'yes' : 'no'
       });
     } catch (error) {
       Logger.error('Failed to send payment reminder', {

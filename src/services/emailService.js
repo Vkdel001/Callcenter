@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { QRGenerator } from '../utils/qrGenerator'
 
 class EmailService {
   constructor() {
@@ -792,7 +793,38 @@ This is an automated message. Please do not reply to this email.
   // Send installment reminder email
   async sendInstallmentReminderEmail(customer, installment, paymentPlan, reminderUrl, agent = null) {
     try {
-      const htmlContent = this.generateInstallmentReminderHTML(customer, installment, paymentPlan, reminderUrl)
+      // Apply the same QR handling logic that works for Gmail
+      let qrBase64 = null;
+      let attachments = [];
+      
+      if (installment.qr_code_url) {
+        try {
+          console.log('🔄 Converting QR code for Gmail compatibility...')
+          
+          // If it's already a data URL, extract the base64 part
+          if (installment.qr_code_url.startsWith('data:image')) {
+            qrBase64 = installment.qr_code_url.split(',')[1];
+          } else {
+            // Otherwise, fetch and convert to base64 (same as working method)
+            qrBase64 = await this.urlToBase64(installment.qr_code_url);
+          }
+          
+          // Add as inline attachment with CID (same as working method)
+          attachments.push({
+            name: 'qr-code.png',
+            content: qrBase64,
+            type: 'image/png'
+          });
+          
+          console.log('✅ QR code converted to CID attachment for Gmail')
+        } catch (error) {
+          console.warn('⚠️ Failed to convert QR to base64, using URL fallback:', error);
+        }
+      }
+
+      // Generate HTML with CID reference (same pattern as working method)
+      const qrImageSrc = qrBase64 ? 'cid:qr-code.png' : installment.qr_code_url;
+      const htmlContent = await this.generateInstallmentReminderHTML(customer, installment, paymentPlan, reminderUrl, qrImageSrc)
       const textContent = this.generateInstallmentReminderText(customer, installment, paymentPlan, reminderUrl)
 
       // Prepare email options
@@ -803,7 +835,8 @@ This is an automated message. Please do not reply to this email.
         },
         subject: `Payment Reminder - Installment ${installment.installment_number} Due`,
         htmlContent,
-        textContent
+        textContent,
+        attachments  // Include CID attachments for Gmail compatibility
       }
 
       // Add CC for the agent who created the AOD
@@ -876,11 +909,37 @@ This is an automated message. Please do not reply to this email.
     }
   }
 
-  generateInstallmentReminderHTML(customer, installment, paymentPlan, reminderUrl) {
+  async generateInstallmentReminderHTML(customer, installment, paymentPlan, reminderUrl, qrImageSrc = null) {
     const dueDate = new Date(installment.due_date).toLocaleDateString()
     const isOverdue = new Date(installment.due_date) < new Date()
     const statusText = isOverdue ? 'OVERDUE' : 'DUE SOON'
     const statusColor = isOverdue ? '#dc2626' : '#f59e0b'
+
+    // Use the CID reference or fallback to external URL (same pattern as working method)
+    const qrSrc = qrImageSrc || installment.qr_code_url;
+    let qrSection = ''
+    
+    if (qrSrc) {
+      const isGmailCompatible = qrImageSrc && qrImageSrc.startsWith('cid:');
+      
+      qrSection = `
+      <div class="qr-section">
+        <h3 style="margin-top: 0; color: #1e3a8a;">Quick Payment via QR Code</h3>
+        <img src="${qrSrc}" alt="Payment QR Code" class="qr-code">
+        <p style="margin: 15px 0 5px 0; font-size: 14px; color: #666;">
+          Scan this QR code with your mobile banking app to pay instantly
+        </p>
+        <div style="background: ${isGmailCompatible ? '#e8f5e8' : '#fff3cd'}; padding: 8px; border-radius: 4px; margin: 10px 0;">
+          <p style="font-size: 11px; color: ${isGmailCompatible ? '#2d5a2d' : '#856404'}; margin: 0;">
+            ${isGmailCompatible ? 
+              '✅ This QR code works in ALL email clients including Gmail' : 
+              '📧 Gmail users: Click "Display images" at the top of this email to see the QR code'
+            }
+          </p>
+        </div>
+      </div>
+      `
+    }
 
     return `
       <!DOCTYPE html>
@@ -931,15 +990,7 @@ This is an automated message. Please do not reply to this email.
 
             <div class="amount">MUR ${installment.amount.toLocaleString()}</div>
             
-            ${installment.qr_code_url ? `
-            <div class="qr-section">
-              <h3 style="margin-top: 0; color: #1e3a8a;">Quick Payment via QR Code</h3>
-              <img src="${installment.qr_code_url}" alt="Payment QR Code" class="qr-code">
-              <p style="margin: 15px 0 5px 0; font-size: 14px; color: #666;">
-                Scan this QR code with your mobile banking app to pay instantly
-              </p>
-            </div>
-            ` : ''}
+            ${qrSection}
             
             <div style="text-align: center; margin: 30px 0;">
               ${installment.qr_code_url ? `
@@ -951,7 +1002,7 @@ This is an automated message. Please do not reply to this email.
             <div style="background: #f0f9ff; padding: 15px; border-radius: 6px; border-left: 4px solid #0ea5e9; margin: 20px 0;">
               <p style="margin: 0; font-size: 14px;">
                 <strong>💡 Payment Options:</strong><br>
-                • Scan the QR code above with your mobile banking app<br>
+                ${installment.qr_code_url ? '• Scan the QR code above with your mobile banking app<br>' : ''}
                 • Click the buttons above to access your payment page<br>
                 • Contact our customer service for assistance
               </p>

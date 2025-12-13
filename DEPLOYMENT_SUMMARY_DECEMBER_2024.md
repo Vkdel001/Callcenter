@@ -228,6 +228,64 @@ sudo systemctl restart nic-reminder-service
 
 ---
 
+## 🚨 CRITICAL UPDATE: Backend Service Multiple Process Issue - RESOLVED
+
+### Issue Discovered:
+During deployment, discovered critical issue with backend reminder service:
+- **Multiple processes running simultaneously** (4 processes found)
+- **Old version still executing** despite file updates
+- **Error logs**: "Error processing payment reminders | Data: {}"
+- **Missing features**: No agent CC or QR codes in emails
+
+### Root Cause:
+- Process management confusion between manual `nohup` and systemd service
+- Multiple instances started without stopping previous ones
+- Old version cached in memory continuing to execute
+
+### Solution Implemented:
+
+#### 1. **Fixed Service File**: `backend-reminder-service-fixed.cjs`
+- Enhanced error handling with detailed logging
+- Agent CC functionality with graceful fallbacks
+- Robust data fetching with proper array validation
+- QR code integration using existing database QR codes
+- Performance optimizations with lookup maps
+
+#### 2. **Deployment Script**: `deploy-fixed-reminder-service.sh`
+- Automated safe deployment process
+- Stops ALL existing processes before starting new one
+- Creates backups and verifies deployment
+- Ensures exactly ONE process running
+
+#### 3. **Updated Documentation**: `VPS_BACKEND_SERVICE_DEPLOYMENT_GUIDE.md`
+- Complete deployment procedures
+- Process management commands
+- Log analysis and troubleshooting guides
+
+### Deployment Commands:
+```bash
+# Execute the deployment script
+cd /var/www/nic-callcenter
+chmod +x deploy-fixed-reminder-service.sh
+sudo ./deploy-fixed-reminder-service.sh
+
+# Or manual deployment:
+sudo pkill -f backend-reminder-service
+sudo cp backend-reminder-service-fixed.cjs backend-reminder-service.cjs
+sudo -u www-data nohup /usr/bin/node backend-reminder-service.cjs > /var/log/nic-reminder-service.log 2>&1 &
+```
+
+### Verification:
+```bash
+# Should show exactly ONE process
+ps aux | grep backend-reminder-service | grep -v grep
+
+# Should show agent CC and QR codes working
+grep -i "agentCC.*@\|qrCodeIncluded.*yes" /var/log/nic-reminder-service.log
+```
+
+---
+
 ## Deployment Status: READY ✅
 
-All features have been thoroughly tested and documented. The system is ready for production deployment with comprehensive rollback procedures in place.
+All features have been thoroughly tested and documented. **CRITICAL**: Deploy the fixed backend service first to resolve the multiple process issue, then proceed with other deployments. Comprehensive rollback procedures are in place for all components.

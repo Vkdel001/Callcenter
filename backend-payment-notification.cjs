@@ -276,13 +276,28 @@ async function checkForNewPayments() {
         log(`   Policy: ${payment.policy_number}`)
         
         // Get customer details for email
-        const customerResponse = await customerApi.get(`/nic_cc_customer/${payment.customer}`)
-        const customer = customerResponse.data
+        let customer;
         
-        if (!customer) {
-          log(`❌ Customer ${payment.customer} not found`, 'ERROR')
+        if (payment.customer) {
+          // Regular payment - fetch from nic_cc_customer
+          log(`   Fetching customer details from nic_cc_customer table`)
+          const customerResponse = await customerApi.get(`/nic_cc_customer/${payment.customer}`)
+          customer = customerResponse.data
+        } else {
+          // Quick QR payment - use data from payment record
+          log(`   Using customer data from payment record (Quick QR payment)`)
+          customer = {
+            name: payment.customer_name,
+            email: payment.customer_email
+          }
+        }
+        
+        if (!customer || !customer.email) {
+          log(`❌ Customer email not available for payment ${payment.id}`, 'ERROR')
           continue
         }
+        
+        log(`   Customer: ${customer.name} (${customer.email})`)
         
         // Send SMS
         const smsResult = await sendPaymentSMS(payment, customer)

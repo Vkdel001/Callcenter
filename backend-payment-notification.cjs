@@ -220,6 +220,10 @@ async function sendPaymentEmail(payment, customer) {
         email: customer.email,
         name: customer.name
       }],
+      replyTo: {
+        email: 'nicarlife@nicl.mu',
+        name: 'NIC Life Customer Service'
+      },
       subject: `Payment Confirmation - Policy ${payment.policy_number}`,
       htmlContent: htmlContent
     }

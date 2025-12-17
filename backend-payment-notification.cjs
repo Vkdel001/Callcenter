@@ -31,6 +31,7 @@ const CONFIG = {
   XANO_BASE_URL: process.env.VITE_XANO_BASE_URL,
   XANO_PAYMENT_API: process.env.VITE_XANO_PAYMENT_API,
   XANO_CUSTOMER_API: process.env.VITE_XANO_CUSTOMER_API,
+  XANO_QR_TRANSACTIONS_API: process.env.VITE_XANO_QR_TRANSACTIONS_API || '6MaKDJBx',
   SENDER_EMAIL: process.env.VITE_SENDER_EMAIL || 'arrears@niclmauritius.site',
   SENDER_NAME: process.env.VITE_SENDER_NAME || 'NIC Life Insurance Mauritius'
 }
@@ -289,6 +290,38 @@ async function checkForNewPayments() {
           customer = {
             name: payment.customer_name,
             email: payment.customer_email
+          }
+        }
+        
+        // If no email found, try to get it from QR transaction
+        if (!customer || !customer.email) {
+          log(`   No email found, checking QR transactions for policy ${payment.policy_number}`)
+          
+          try {
+            // Create QR API client
+            const qrApi = axios.create({
+              baseURL: `${CONFIG.XANO_BASE_URL}/api:6MaKDJBx`,
+              headers: { 'Content-Type': 'application/json' }
+            })
+            
+            const qrResponse = await qrApi.get('/nic_qr_transactions')
+            const allTransactions = qrResponse.data || []
+            
+            const matchingTransaction = allTransactions.find(tx => 
+              tx.policy_number === payment.policy_number
+            )
+            
+            if (matchingTransaction && matchingTransaction.customer_email) {
+              log(`   ✅ Found email in QR transaction: ${matchingTransaction.customer_email}`)
+              customer = {
+                name: matchingTransaction.customer_name || payment.customer_name,
+                email: matchingTransaction.customer_email
+              }
+            } else {
+              log(`   ❌ No email found in QR transactions for policy ${payment.policy_number}`)
+            }
+          } catch (qrError) {
+            log(`   ❌ Failed to fetch QR transactions: ${qrError.message}`)
           }
         }
         

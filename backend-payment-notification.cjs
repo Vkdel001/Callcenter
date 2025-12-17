@@ -186,14 +186,19 @@ async function sendPaymentEmail(payment, customer) {
               <p><strong>Policy Number:</strong> ${payment.policy_number}</p>
               <p><strong>Payment Date:</strong> ${new Date(payment.payment_date).toLocaleString()}</p>
               <p><strong>Transaction Reference:</strong> ${payment.transaction_reference}</p>
-              <p><strong>Previous Balance:</strong> MUR ${parseFloat(payment.old_balance).toLocaleString()}</p>
-              <p><strong>New Balance:</strong> MUR ${parseFloat(payment.new_balance).toLocaleString()}</p>
             </div>
             
             <div style="background: #d4edda; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745; margin: 20px 0;">
               <p style="margin: 0; color: #155724;">
                 <strong>✅ Payment Confirmed</strong><br>
-                Your payment has been successfully processed and your account has been updated.
+                Your payment has been successfully processed.
+              </p>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>📅 Payment Allocation</strong><br>
+                The payment allocation to your NIC account will be done in 3 to 4 working days.
               </p>
             </div>
             

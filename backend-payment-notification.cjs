@@ -33,7 +33,7 @@ const CONFIG = {
   XANO_CUSTOMER_API: process.env.VITE_XANO_CUSTOMER_API,
   XANO_QR_TRANSACTIONS_API: process.env.VITE_XANO_QR_TRANSACTIONS_API || '6MaKDJBx',
   SENDER_EMAIL: process.env.VITE_SENDER_EMAIL || 'arrears@niclmauritius.site',
-  SENDER_NAME: process.env.VITE_SENDER_NAME || 'NIC Life Insurance Mauritius'
+  SENDER_NAME: process.env.VITE_SENDER_NAME || 'NIC'
 }
 
 // Validate configuration
@@ -171,7 +171,7 @@ async function sendPaymentEmail(payment, customer) {
       <body>
         <div class="container">
           <div class="header">
-            <h1>NIC Life Insurance Mauritius</h1>
+            <h1>NIC</h1>
             <h2 style="margin: 10px 0 0 0; font-weight: normal;">Payment Confirmation</h2>
           </div>
           
@@ -188,13 +188,6 @@ async function sendPaymentEmail(payment, customer) {
               <p><strong>Transaction Reference:</strong> ${payment.transaction_reference}</p>
             </div>
             
-            <div style="background: #d4edda; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745; margin: 20px 0;">
-              <p style="margin: 0; color: #155724;">
-                <strong>✅ Payment Confirmed</strong><br>
-                Your payment has been successfully processed.
-              </p>
-            </div>
-            
             <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 20px 0;">
               <p style="margin: 0; color: #856404;">
                 <strong>📅 Payment Allocation</strong><br>
@@ -202,16 +195,16 @@ async function sendPaymentEmail(payment, customer) {
               </p>
             </div>
             
-            <p>If you have any questions about this payment, please contact our customer service team.</p>
+            <p>If you have any questions about this payment, please contact our customer service team by replying to this email.</p>
             
             <p>Best regards,<br>
-            <strong>NIC Life Insurance Mauritius</strong><br>
-            Customer Service Team</p>
+            <strong>NIC - Serving You. Serving the Nation</strong><br>
+            </p>
           </div>
           
           <div class="footer">
             <p>NIC Centre, 217 Royal Road, Curepipe, Mauritius</p>
-            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>This is an automated message</p>
           </div>
         </div>
       </body>

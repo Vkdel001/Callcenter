@@ -13,14 +13,16 @@ const Sidebar = () => {
   const salesAgentNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
-    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' },
+    { to: '/qr-summary', icon: BarChart3, label: 'My QR Performance' }
     // Sales agents can generate QR for new customers
   ]
 
   const csrNavItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
-    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' },
+    { to: '/qr-summary', icon: BarChart3, label: 'My QR Performance' }
     // CSRs use LOB Dashboard for customer access (no separate Customers link)
   ]
 
@@ -28,14 +30,16 @@ const Sidebar = () => {
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/customers', icon: Users, label: 'Customers' },
     { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
-    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' },
+    { to: '/qr-summary', icon: BarChart3, label: 'My QR Performance' }
   ]
 
   const internalAgentNavItems = [
     { to: '/', icon: Home, label: 'LOB Dashboard' },
     { to: '/customers', icon: Users, label: 'All Customers' },
     { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
-    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' }
+    { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' },
+    { to: '/qr-summary', icon: BarChart3, label: 'My QR Performance' }
   ]
 
   // CSL Agent Navigation (Branch 13)

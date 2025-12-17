@@ -358,30 +358,81 @@ class ReminderService {
   
   static async sendPaymentReminder(customer, installment, agent = null) {
     const subject = `Payment Reminder - NIC Life Insurance`;
+    
+    // Generate QR code for installment payment
+    let qrCodeSection = '';
+    try {
+      if (installment.amount && customer.policy_number) {
+        // Create QR code URL using external service (similar to frontend)
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+          `Payment for Policy: ${customer.policy_number}, Amount: MUR ${installment.amount}, Due: ${new Date(installment.due_date).toLocaleDateString()}`
+        )}`;
+        
+        qrCodeSection = `
+          <div style="text-align: center; margin: 20px 0; background: #f9fafb; padding: 20px; border-radius: 8px;">
+            <h3 style="margin-top: 0; color: #1e40af;">Quick Payment via QR Code</h3>
+            <img src="${qrApiUrl}" alt="Payment QR Code" style="max-width: 200px; border: 1px solid #ddd; border-radius: 4px;">
+            <p style="margin: 15px 0 5px 0; font-size: 14px; color: #666;">
+              Scan this QR code with your mobile banking app to pay instantly
+            </p>
+          </div>
+        `;
+      }
+    } catch (qrError) {
+      Logger.warn('Failed to generate QR code for reminder', { installmentId: installment.id, error: qrError.message });
+    }
+    
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1e40af;">Payment Reminder</h2>
-        <p>Dear ${customer.first_name} ${customer.last_name},</p>
-        <p>This is a friendly reminder that your payment is overdue.</p>
-        
-        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">Payment Details:</h3>
-          <p><strong>Amount Due:</strong> MUR ${installment.amount}</p>
-          <p><strong>Due Date:</strong> ${new Date(installment.due_date).toLocaleDateString()}</p>
-          <p><strong>Policy Number:</strong> ${customer.policy_number || 'N/A'}</p>
-          <p><strong>Installment:</strong> ${installment.installment_number || 'N/A'}</p>
+        <div style="background: #1e40af; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0;">NIC Life Insurance Mauritius</h1>
+          <h2 style="margin: 10px 0 0 0; font-weight: normal;">Payment Reminder</h2>
         </div>
         
-        <p>Please make your payment as soon as possible to avoid any service interruption.</p>
+        <div style="padding: 20px; background: #ffffff; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <p>Dear <strong>${customer.first_name} ${customer.last_name}</strong>,</p>
+          <p>This is a friendly reminder that your installment payment is overdue.</p>
+          
+          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #1e40af;">
+            <h3 style="margin-top: 0; color: #1e40af;">Payment Details:</h3>
+            <p style="margin: 5px 0;"><strong>Amount Due:</strong> <span style="color: #dc2626; font-size: 18px; font-weight: bold;">MUR ${installment.amount.toLocaleString()}</span></p>
+            <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(installment.due_date).toLocaleDateString()}</p>
+            <p style="margin: 5px 0;"><strong>Policy Number:</strong> ${customer.policy_number || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Installment:</strong> ${installment.installment_number || 'N/A'} of ${installment.total_installments || 'N/A'}</p>
+          </div>
+          
+          ${qrCodeSection}
+          
+          <div style="background: #fef2f2; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444; margin: 20px 0;">
+            <p style="margin: 0; color: #dc2626;"><strong>⚠️ Important:</strong> Please make your payment as soon as possible to avoid any service interruption.</p>
+          </div>
+          
+          <div style="background: #f0f9ff; padding: 15px; border-radius: 6px; border-left: 4px solid #0ea5e9; margin: 20px 0;">
+            <h4 style="margin-top: 0; color: #0ea5e9;">💡 Payment Options:</h4>
+            <ul style="margin: 10px 0; color: #374151;">
+              <li>Scan the QR code above with your mobile banking app</li>
+              <li>Visit our office for in-person payment</li>
+              <li>Contact our customer service for assistance</li>
+            </ul>
+          </div>
+          
+          <p>If you have any questions, please contact us at:</p>
+          <p style="background: #f9fafb; padding: 10px; border-radius: 4px; margin: 15px 0;">
+            📞 <strong>Phone:</strong> +230-602-3315<br>
+            📧 <strong>Email:</strong> ${CONFIG.SENDER_EMAIL}
+          </p>
+          
+          <p>Thank you for your attention to this matter.</p>
+          
+          <p>Best regards,<br>
+          <strong>NIC Life Insurance Mauritius</strong><br>
+          <em>Customer Service Team</em></p>
+        </div>
         
-        <p>If you have any questions, please contact us at:</p>
-        <p>📞 Phone: +230-602-3315<br>
-        📧 Email: ${CONFIG.SENDER_EMAIL}</p>
-        
-        <p>Thank you for your attention to this matter.</p>
-        
-        <p>Best regards,<br>
-        <strong>NIC Life Insurance Mauritius</strong></p>
+        <div style="text-align: center; padding: 15px; font-size: 12px; color: #666;">
+          <p>NIC Centre, 217 Royal Road, Curepipe, Mauritius</p>
+          <p>This is an automated reminder. Please do not reply to this email.</p>
+        </div>
       </div>
     `;
     
@@ -391,7 +442,8 @@ class ReminderService {
         customerId: customer.id, 
         email: customer.email,
         installmentId: installment.id,
-        agentCC: agent?.email || 'none'
+        agentCC: agent?.email || 'none',
+        qrCodeIncluded: qrCodeSection ? 'yes' : 'no'
       });
     } catch (error) {
       Logger.error('Failed to send payment reminder', { 

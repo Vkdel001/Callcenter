@@ -508,19 +508,41 @@ export const customerService = {
     }
   },
 
-  async generateQRCode(customerData) {
+  async generateQRCode(customerData, agentData = null, qrType = 'customer_detail') {
     const { qrService } = await import('./qrService')
+    const { qrTransactionService } = await import('./qrTransactionService')
 
     try {
       const result = await qrService.generatePaymentQR(customerData)
 
       if (result.success) {
+        // Log QR transaction to database
+        try {
+          const logResult = await qrTransactionService.logQRGeneration(
+            result.qrData,
+            {
+              ...customerData,
+              merchantId: result.merchantId,
+              transactionAmount: result.transactionAmount
+            },
+            agentData,
+            qrType
+          )
+
+          console.log('QR transaction logged:', logResult.success ? 'Success' : 'Failed')
+        } catch (logError) {
+          console.error('Failed to log QR transaction:', logError)
+          // Don't fail QR generation if logging fails
+        }
+
         return {
+          success: true,
           qrCodeUrl: result.qrCodeUrl,
           paymentLink: result.paymentLink,
           qrData: result.qrData,
           merchantId: result.merchantId,
           transactionAmount: result.transactionAmount,
+          lineOfBusiness: result.lineOfBusiness,
           customerData: customerData // Store customer data for the modal
         }
       } else {

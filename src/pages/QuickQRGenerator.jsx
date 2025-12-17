@@ -24,7 +24,7 @@ const QuickQRGenerator = () => {
   const watchedPolicyNumber = watch('policyNumber')
 
   const generateQRMutation = useMutation(
-    (customerData) => customerService.generateQRCode(customerData),
+    (customerData) => customerService.generateQRCode(customerData, user, 'quick_qr'),
     {
       onSuccess: async (data) => {
         if (data.success === false) {

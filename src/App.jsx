@@ -20,6 +20,7 @@ import AgentManagement from './pages/admin/AgentManagement'
 import BranchManagement from './pages/admin/BranchManagement'
 import ReminderScheduler from './pages/admin/ReminderScheduler'
 import QuickQRGenerator from './pages/QuickQRGenerator'
+import AgentQRSummary from './pages/AgentQRSummary'
 import PaymentPlanTest from './pages/test/PaymentPlanTest'
 import InstallmentReminder from './pages/InstallmentReminder'
 import LOBDashboard from './components/sales/LOBDashboard'
@@ -75,6 +76,7 @@ function App() {
           <Route path="customers/:id" element={<CustomerDetail />} />
           <Route path="follow-ups" element={<FollowUpDashboard />} />
           <Route path="quick-qr" element={<QuickQRGenerator />} />
+          <Route path="qr-summary" element={<AgentQRSummary />} />
           <Route path="lob/:lobType" element={<LOBDashboard />} />
           <Route path="lob/:lobType/:month" element={<LOBDashboard />} />
           <Route path="admin" element={<AdminDashboard />} />

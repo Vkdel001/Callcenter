@@ -222,7 +222,7 @@ const CustomerDetail = () => {
         amountDue: updatedAmount,  // Add camelCase version for qrService
       };
       
-      return customerService.generateQRCode(customerData);
+      return customerService.generateQRCode(customerData, user, 'customer_detail');
     },
     {
       onSuccess: async (data) => {

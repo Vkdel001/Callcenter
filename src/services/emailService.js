@@ -153,16 +153,24 @@ class EmailService {
         sender  // Use LOB-specific sender
       }
 
-      // Add CC and Reply-To for agent if provided (but NOT for CSL agents)
-      if (agentEmail && !options.isCslAgent) {
-        emailOptions.cc = [{
+      // Always CC customer service
+      emailOptions.cc = [{
+        email: 'customerservice@nicl.mu',
+        name: 'Customer Service'
+      }]
+
+      // BCC agent if provided (keeps them informed but hidden)
+      if (agentEmail) {
+        emailOptions.bcc = [{
           email: agentEmail,
           name: agentName || 'Agent'
         }]
-        emailOptions.replyTo = {
-          email: agentEmail,
-          name: agentName || 'Your Agent'
-        }
+      }
+
+      // Set reply-to to customer service
+      emailOptions.replyTo = {
+        email: 'customerservice@nicl.mu',
+        name: 'Customer Service'
       }
 
       return await this.sendTransactionalEmail(emailOptions)
@@ -180,24 +188,16 @@ class EmailService {
     const qrSrc = qrImageSrc || qrCodeUrl;
     const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
     
-    // Generate contact section based on agent type
-    const contactSection = isCslAgent ? `
+    // Static customer service contact section for all emails
+    const contactSection = `
       <div class="agent-contact">
         <p style="margin: 0; color: #666; line-height: 1.6;">
-          Should you require any additional information, please do not 
-          hesitate to email us on <a href="mailto:nicarlife@nicl.mu" 
-          style="color: #2563eb;">nicarlife@nicl.mu</a> or call our 
-          Recovery Department on <strong>602-3315</strong>.
+          For any questions or assistance, you can contact us by email at 
+          <a href="mailto:customerservice@nicl.mu" style="color: #2563eb;">customerservice@nicl.mu</a> 
+          or call us on <strong>602 3000</strong>.
         </p>
       </div>
-    ` : (agentEmail ? `
-      <div class="agent-contact">
-        <h4 style="margin-top: 0; color: #000;">Your Agent Contact</h4>
-        <p style="margin: 5px 0;"><strong>Name:</strong> ${agentName || 'Your Agent'}</p>
-        <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${agentEmail}" style="color: #2563eb;">${agentEmail}</a></p>
-        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">For any questions or assistance, please contact your agent directly by replying to this email.</p>
-      </div>
-    ` : '<p>If you have any questions or need assistance, please contact our customer service team.</p>')
+    `
     
     return `
       <!DOCTYPE html>
@@ -264,18 +264,11 @@ class EmailService {
   generatePaymentReminderText(customer, paymentLink, lob = 'life', referenceNumber = 'N/A', agentEmail = null, agentName = null, isCslAgent = false) {
     const lobName = lob.charAt(0).toUpperCase() + lob.slice(1)
     
-    // Generate contact text based on agent type
-    const agentContact = isCslAgent ? `
+    // Static customer service contact for all emails
+    const agentContact = `
 
-Should you require any additional information, please do not hesitate to email us on nicarlife@nicl.mu or call our Recovery Department on 602-3315.
-` : (agentEmail ? `
-
-YOUR AGENT CONTACT:
-Name: ${agentName || 'Your Agent'}
-Email: ${agentEmail}
-
-For any questions or assistance, please contact your agent directly by replying to this email.
-` : 'If you have any questions or need assistance, please contact our customer service team.')
+For any questions or assistance, you can contact us by email at customerservice@nicl.mu or call us on 602 3000.
+`
     
     return `
 Dear ${customer.name},

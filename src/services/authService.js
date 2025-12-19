@@ -26,7 +26,7 @@ export const authService = {
       // Temporary fix: manually set admin role for specific user
       let userRole = agent.role
       if (agent.email === 'vkdel001@gmail.com') {
-        userRole = 'admin'
+        userRole = 'life_admin'  // Changed to life_admin for bulk agent creation access
 
       } else {
         userRole = agent.role || 'agent'

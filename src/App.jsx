@@ -32,6 +32,7 @@ import CSLDashboard from './pages/csl/CSLDashboard'
 import CSLPolicyDetail from './pages/csl/CSLPolicyDetail'
 import CSLReports from './pages/csl/CSLReports'
 import FollowUpDashboard from './pages/FollowUpDashboard'
+import BulkAgentCreation from './pages/admin/BulkAgentCreation'
 
 function App() {
   // Initialize scheduler and check database when app starts
@@ -84,6 +85,7 @@ function App() {
           <Route path="admin/reports" element={<Reports />} />
           <Route path="admin/agents" element={<AgentManagement />} />
           <Route path="admin/branches" element={<BranchManagement />} />
+          <Route path="admin/bulk-agents" element={<BulkAgentCreation />} />
           <Route path="admin/scheduler" element={<ReminderScheduler />} />
           <Route path="test/payment-plan" element={<PaymentPlanTest />} />
           

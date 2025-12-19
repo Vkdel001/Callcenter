@@ -55,6 +55,9 @@ const Sidebar = () => {
     { to: '/admin/reports', icon: BarChart3, label: 'Reports' },
     { to: '/admin/agents', icon: Users, label: 'Manage Agents' },
     { to: '/admin/branches', icon: Building2, label: 'Manage Branches' },
+    ...(user?.role === 'admin' || user?.role === 'life_admin' ? [
+      { to: '/admin/bulk-agents', icon: Upload, label: 'Bulk Agent Creation' }
+    ] : []),
     { to: '/admin/scheduler', icon: Clock, label: 'Reminder Scheduler' },
     // CSL Admin items (only for life_admin and super admin)
     ...(user?.role === 'admin' || user?.role === 'life_admin' ? [

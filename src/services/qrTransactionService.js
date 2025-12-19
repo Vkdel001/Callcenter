@@ -34,7 +34,7 @@ class QRTransactionService {
         amount: parseFloat(customerData.amountDue || customerData.amount_due),
         line_of_business: customerData.lineOfBusiness || customerData.line_of_business,
         merchant_id: customerData.merchantId || customerData.merchant_id,
-        agent_id: agentData?.id || null,
+        agent: agentData?.id || null,
         agent_email: agentData?.email || null,
         agent_name: agentData?.name || null,
         qr_type: qrType,
@@ -171,17 +171,36 @@ class QRTransactionService {
    */
   async getAgentHistory(agentId, filters = {}) {
     try {
+      // Note: Since agent ID is not properly stored in database (all records have agent: 0),
+      // we need to filter on the frontend by agent_name matching the current user's name
       const params = {
-        agent_id: agentId,
         ...filters
+        // Removed agent filter since it doesn't work (all records have agent: 0)
       }
 
       const response = await qrTransactionsApi.get(this.baseUrl, { params })
       
+      // Since database doesn't have proper agent ID filtering, we need to filter on frontend
+      // by matching agent_name with current user's name
+      let filteredTransactions = response.data
+      
+      // Get current user info from localStorage to filter by agent_name
+      try {
+        const userInfo = JSON.parse(localStorage.getItem('user') || '{}')
+        if (userInfo.name) {
+          filteredTransactions = response.data.filter(transaction => 
+            transaction.agent_name === userInfo.name
+          )
+          console.log(`🔍 Filtered QR transactions: ${response.data.length} total → ${filteredTransactions.length} for agent "${userInfo.name}"`)
+        }
+      } catch (error) {
+        console.warn('Could not filter by agent name:', error)
+      }
+      
       return {
         success: true,
-        transactions: response.data,
-        total: response.headers['x-total-count'] || response.data.length
+        transactions: filteredTransactions,
+        total: filteredTransactions.length
       }
     } catch (error) {
       console.error('❌ Failed to get agent QR history:', error)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../services/customerService'
@@ -16,12 +16,25 @@ const QuickQRGenerator = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [pendingFormData, setPendingFormData] = useState(null)
   const [confirmationInput, setConfirmationInput] = useState('')
+  const [policyType, setPolicyType] = useState('new') // Default to "New Policy" for sales agents
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm()
+  const { register, handleSubmit, reset, watch, clearErrors, formState: { errors } } = useForm()
   
   // Watch form fields for validation
   const watchedLOB = watch('lineOfBusiness')
   const watchedPolicyNumber = watch('policyNumber')
+  
+  // Dynamic behavior based on policy type selection
+  const isNewPolicyMode = isSalesAgent && policyType === 'new'
+  const shouldValidatePolicy = !isNewPolicyMode
+  const isNIDRequired = isNewPolicyMode
+
+  // Clear NID validation errors when switching policy types
+  useEffect(() => {
+    if (!isNIDRequired) {
+      clearErrors('nid')
+    }
+  }, [isNIDRequired, clearErrors])
 
   const generateQRMutation = useMutation(
     (customerData) => customerService.generateQRCode(customerData, user, 'quick_qr'),
@@ -146,15 +159,15 @@ const QuickQRGenerator = () => {
   // Check if form is valid for submission
   const isPolicyValid = () => {
     if (!watchedLOB || !watchedPolicyNumber) return false
-    // Sales agents don't need validation
-    if (isSalesAgent) return true
+    // Skip validation for new policy mode
+    if (isNewPolicyMode) return true
     const validation = validatePolicyNumber(watchedPolicyNumber, watchedLOB)
     return validation.valid
   }
 
   const onSubmit = (data) => {
-    // Validate policy number (skip for sales agents)
-    if (!isSalesAgent) {
+    // Validate policy number (skip for new policy mode)
+    if (shouldValidatePolicy) {
       const validation = validatePolicyNumber(data.policyNumber, data.lineOfBusiness)
       if (!validation.valid) {
         alert(`❌ Invalid Policy Number: ${validation.error}`)
@@ -185,7 +198,7 @@ const QuickQRGenerator = () => {
       name: pendingFormData.name,
       policyNumber: pendingFormData.policyNumber,
       mobile: pendingFormData.mobile,
-      email: pendingFormData.email || '',
+      email: pendingFormData.email, // Now required, no need for fallback
       nid: pendingFormData.nid || '',
       amountDue: parseFloat(pendingFormData.amountDue),
       lineOfBusiness: pendingFormData.lineOfBusiness
@@ -213,7 +226,7 @@ const QuickQRGenerator = () => {
         paymentLink: qrData.paymentLink,
         // Pass context for email template selection
         options: {
-          isNewPolicy: isSalesAgent,  // Sales agent = new policy
+          isNewPolicy: isNewPolicyMode,  // Based on policy type selection
           lineOfBusiness: qrData.customerData.lineOfBusiness,
           referenceNumber: qrData.customerData.policyNumber,
           agentEmail: user?.email || null,  // Agent's email for contact
@@ -255,11 +268,15 @@ const QuickQRGenerator = () => {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          {isSalesAgent ? 'New Customer Payment QR' : 'Quick QR Generator'}
+          {isSalesAgent 
+            ? (policyType === 'new' ? 'New Customer Payment QR' : 'Existing Customer Payment QR')
+            : 'Quick QR Generator'}
         </h1>
         <p className="text-gray-600">
           {isSalesAgent 
-            ? 'Generate payment QR codes for new customers (application form stage)' 
+            ? (policyType === 'new' 
+                ? 'Generate payment QR codes for new customers (application form stage)' 
+                : 'Generate payment QR codes for existing customers (payment reminders)')
             : 'Generate payment QR codes for any customer instantly'}
         </p>
       </div>
@@ -272,6 +289,24 @@ const QuickQRGenerator = () => {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Policy Type Selector (Sales Agents Only) */}
+          {isSalesAgent && (
+            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+              <label className="flex items-center text-sm font-medium text-red-700 mb-2">
+                <CreditCard className="h-4 w-4 mr-1 text-red-600" />
+                Select Policy Type *
+              </label>
+              <select
+                value={policyType}
+                onChange={(e) => setPolicyType(e.target.value)}
+                className="w-full px-3 py-2 border border-red-300 rounded-md focus:ring-red-500 focus:border-red-500 bg-white"
+              >
+                <option value="new">New Policy (Application Form)</option>
+                <option value="existing">Existing Policy (Payment Reminder)</option>
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Line of Business */}
             <div>
@@ -317,45 +352,45 @@ const QuickQRGenerator = () => {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
                 <CreditCard className="h-4 w-4 mr-1" />
-                {isSalesAgent ? 'Application Form Number *' : 'Policy Number *'}
+                {isNewPolicyMode ? 'Application Form Number *' : 'Policy Number *'}
               </label>
               <input
                 {...register('policyNumber', { 
-                  required: isSalesAgent ? 'Application form number is required' : 'Policy number is required' 
+                  required: isNewPolicyMode ? 'Application form number is required' : 'Policy number is required' 
                 })}
                 type="text"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder={isSalesAgent ? 'e.g., APP-2024-001' : 'e.g., MED/2023/260/11/0028/1'}
+                placeholder={isNewPolicyMode ? 'e.g., APP-2024-001' : 'e.g., MED/2023/260/11/0028/1'}
               />
               {errors.policyNumber && (
                 <p className="mt-1 text-sm text-red-600">{errors.policyNumber.message}</p>
               )}
-              {/* Real-time validation feedback (only for non-sales agents) */}
-              {!isSalesAgent && watchedLOB && watchedPolicyNumber && (() => {
+              {/* Real-time validation feedback (only when validation is enabled) */}
+              {shouldValidatePolicy && watchedLOB && watchedPolicyNumber && (() => {
                 const validation = validatePolicyNumber(watchedPolicyNumber, watchedLOB)
                 if (!validation.valid) {
                   return <p className="mt-1 text-sm text-red-600">⚠️ {validation.error}</p>
                 }
                 return <p className="mt-1 text-sm text-green-600">✅ Policy number format is valid</p>
               })()}
-              {/* Format hints based on LOB (only for non-sales agents) */}
-              {!isSalesAgent && watchedLOB === 'health' && (
+              {/* Format hints based on LOB (only when validation is enabled) */}
+              {shouldValidatePolicy && watchedLOB === 'health' && (
                 <p className="mt-1 text-xs text-gray-500">
                   Format: MED/YYYY/XXX/XX/XXXX (4-5 slashes)
                 </p>
               )}
-              {!isSalesAgent && watchedLOB === 'motor' && (
+              {shouldValidatePolicy && watchedLOB === 'motor' && (
                 <p className="mt-1 text-xs text-gray-500">
                   Format: P/YYYY/XXX-X/XXX (3-5 slashes + hyphen required)
                 </p>
               )}
-              {!isSalesAgent && watchedLOB === 'life' && (
+              {shouldValidatePolicy && watchedLOB === 'life' && (
                 <p className="mt-1 text-xs text-gray-500">
                   Format: Flexible (any format accepted)
                 </p>
               )}
-              {/* Sales agent hint */}
-              {isSalesAgent && (
+              {/* New policy mode hint */}
+              {isNewPolicyMode && (
                 <p className="mt-1 text-xs text-gray-500">
                   Enter the application form number (any format accepted)
                 </p>
@@ -385,14 +420,15 @@ const QuickQRGenerator = () => {
               )}
             </div>
 
-            {/* Email (Optional) */}
+            {/* Email (Mandatory) */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
                 <Mail className="h-4 w-4 mr-1" />
-                Email Address
+                Email Address *
               </label>
               <input
                 {...register('email', {
+                  required: 'Email address is required',
                   pattern: {
                     value: /^\S+@\S+$/i,
                     message: 'Invalid email address'
@@ -400,35 +436,44 @@ const QuickQRGenerator = () => {
                 })}
                 type="email"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder="customer@email.com (optional)"
+                placeholder="customer@email.com"
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
+              <p className="mt-1 text-xs text-gray-500">
+                Required for sending payment confirmations and reminders
+              </p>
             </div>
 
-            {/* NID (Mandatory for Sales Agents) */}
+            {/* NID (Mandatory for New Policy Mode) */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
                 <Hash className="h-4 w-4 mr-1" />
-                National ID {isSalesAgent && '*'}
+                National ID {isNIDRequired && '*'}
               </label>
               <input
-                {...register('nid', isSalesAgent ? { 
-                  required: 'National ID is required for new customers',
-                  minLength: {
-                    value: 10,
-                    message: 'National ID must be at least 10 characters'
+                {...register('nid', {
+                  validate: (value) => {
+                    if (isNIDRequired) {
+                      if (!value || value.trim() === '') {
+                        return 'National ID is required for new customers'
+                      }
+                      if (value.length < 10) {
+                        return 'National ID must be at least 10 characters'
+                      }
+                    }
+                    return true
                   }
-                } : {})}
+                })}
                 type="text"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder={isSalesAgent ? 'e.g., A0101851234567 (required)' : 'National ID (optional)'}
+                placeholder={isNIDRequired ? 'e.g., A0101851234567 (required)' : 'National ID (optional)'}
               />
               {errors.nid && (
                 <p className="mt-1 text-sm text-red-600">{errors.nid.message}</p>
               )}
-              {isSalesAgent && (
+              {isNIDRequired && (
                 <p className="mt-1 text-xs text-gray-500">
                   Format: Letter + 13 digits (e.g., A0101851234567)
                 </p>
@@ -470,7 +515,7 @@ const QuickQRGenerator = () => {
               <QrCode className="h-5 w-5 mr-2" />
               {generateQRMutation.isLoading ? 'Generating...' : 'Generate Payment QR'}
             </button>
-            {!isPolicyValid() && watchedLOB && watchedPolicyNumber && (
+            {!isPolicyValid() && watchedLOB && watchedPolicyNumber && shouldValidatePolicy && (
               <p className="ml-4 text-sm text-red-600 self-center">
                 ⚠️ Please fix policy number format
               </p>
@@ -629,16 +674,14 @@ const QuickQRGenerator = () => {
                 </button>
               </div>
 
-              {qrData.customerData?.email && (
-                <button
-                  onClick={handleSendEmail}
-                  disabled={sendEmailMutation.isLoading}
-                  className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  {sendEmailMutation.isLoading ? 'Sending...' : 'Send via Email'}
-                </button>
-              )}
+              <button
+                onClick={handleSendEmail}
+                disabled={sendEmailMutation.isLoading}
+                className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                {sendEmailMutation.isLoading ? 'Sending...' : 'Send via Email'}
+              </button>
             </div>
 
             <div className="mt-4 flex space-x-2">

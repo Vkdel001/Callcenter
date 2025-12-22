@@ -4,12 +4,14 @@ import { AuthProvider } from './contexts/AuthContext'
 import { initializeScheduler, cleanupScheduler } from './utils/schedulerInit'
 import { initializeDatabaseCheck } from './utils/databaseFieldChecker'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import RoleProtectedRoute from './components/auth/RoleProtectedRoute'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Signup from './pages/auth/Signup'
 import OTPVerification from './pages/auth/OTPVerification'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPasswordOTP from './pages/auth/ResetPasswordOTP'
+import Unauthorized from './pages/auth/Unauthorized'
 import Dashboard from './pages/Dashboard'
 import CustomerList from './pages/customers/CustomerList'
 import CustomerDetail from './pages/customers/CustomerDetail'
@@ -62,47 +64,166 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/otp-verify" element={<OTPVerification />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password-otp" element={<ResetPasswordOTP />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="/reminder/:installmentId" element={<InstallmentReminder />} />
+        
+        {/* Protected routes with role-based authorization */}
         <Route path="/" element={
           <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
         }>
-          <Route index element={<Dashboard />} />
-          <Route path="customers" element={<CustomerList />} />
-          <Route path="customers/:id" element={<CustomerDetail />} />
-          <Route path="follow-ups" element={<FollowUpDashboard />} />
-          <Route path="quick-qr" element={<QuickQRGenerator />} />
-          <Route path="qr-summary" element={<AgentQRSummary />} />
-          <Route path="lob/:lobType" element={<LOBDashboard />} />
-          <Route path="lob/:lobType/:month" element={<LOBDashboard />} />
-          <Route path="admin" element={<AdminDashboard />} />
-          <Route path="admin/upload" element={<CustomerUpload />} />
-          <Route path="admin/reports" element={<Reports />} />
-          <Route path="admin/agents" element={<AgentManagement />} />
-          <Route path="admin/branches" element={<BranchManagement />} />
-          <Route path="admin/bulk-agents" element={<BulkAgentCreation />} />
-          <Route path="admin/scheduler" element={<ReminderScheduler />} />
-          <Route path="test/payment-plan" element={<PaymentPlanTest />} />
+          {/* Basic authenticated routes - all users */}
+          <Route index element={
+            <RoleProtectedRoute>
+              <Dashboard />
+            </RoleProtectedRoute>
+          } />
           
-          {/* CSL Admin Routes */}
-          <Route path="admin/csl/upload-policies" element={<CSLPolicyUpload />} />
-          <Route path="admin/csl/upload-payments" element={<CSLPaymentUpload />} />
-          <Route path="admin/csl/dropdown-config" element={<CSLDropdownConfig />} />
-          <Route path="admin/csl/agent-reports" element={<CSLAgentReports />} />
+          <Route path="follow-ups" element={
+            <RoleProtectedRoute>
+              <FollowUpDashboard />
+            </RoleProtectedRoute>
+          } />
           
-          {/* CSL Agent Routes */}
-          <Route path="csl" element={<CSLDashboard />} />
-          <Route path="csl/policy/:id" element={<CSLPolicyDetail />} />
-          <Route path="csl/reports" element={<CSLReports />} />
+          <Route path="quick-qr" element={
+            <RoleProtectedRoute>
+              <QuickQRGenerator />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="qr-summary" element={
+            <RoleProtectedRoute>
+              <AgentQRSummary />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* Customer routes - requires customer access permission */}
+          <Route path="customers" element={
+            <RoleProtectedRoute>
+              <CustomerList />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="customers/:id" element={
+            <RoleProtectedRoute>
+              <CustomerDetail />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* LOB Dashboard routes */}
+          <Route path="lob/:lobType" element={
+            <RoleProtectedRoute>
+              <LOBDashboard />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="lob/:lobType/:month" element={
+            <RoleProtectedRoute>
+              <LOBDashboard />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* Admin routes - admin/life_admin only */}
+          <Route path="admin" element={
+            <RoleProtectedRoute>
+              <AdminDashboard />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/upload" element={
+            <RoleProtectedRoute>
+              <CustomerUpload />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/reports" element={
+            <RoleProtectedRoute>
+              <Reports />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/agents" element={
+            <RoleProtectedRoute>
+              <AgentManagement />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/branches" element={
+            <RoleProtectedRoute>
+              <BranchManagement />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/bulk-agents" element={
+            <RoleProtectedRoute>
+              <BulkAgentCreation />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/scheduler" element={
+            <RoleProtectedRoute>
+              <ReminderScheduler />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* CSL Admin Routes - admin/life_admin only */}
+          <Route path="admin/csl/upload-policies" element={
+            <RoleProtectedRoute>
+              <CSLPolicyUpload />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/csl/upload-payments" element={
+            <RoleProtectedRoute>
+              <CSLPaymentUpload />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/csl/dropdown-config" element={
+            <RoleProtectedRoute>
+              <CSLDropdownConfig />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="admin/csl/agent-reports" element={
+            <RoleProtectedRoute>
+              <CSLAgentReports />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* CSL Agent Routes - branch 13 agents */}
+          <Route path="csl" element={
+            <RoleProtectedRoute>
+              <CSLDashboard />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="csl/policy/:id" element={
+            <RoleProtectedRoute>
+              <CSLPolicyDetail />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="csl/reports" element={
+            <RoleProtectedRoute>
+              <CSLReports />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* Test routes - development only */}
+          <Route path="test/payment-plan" element={
+            <RoleProtectedRoute>
+              <PaymentPlanTest />
+            </RoleProtectedRoute>
+          } />
         </Route>
-
-        {/* Public reminder pages - outside protected routes */}
-        <Route path="/reminder/:installmentId" element={<InstallmentReminder />} />
       </Routes>
     </AuthProvider>
   )

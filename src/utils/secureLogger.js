@@ -72,14 +72,35 @@ class SecureLogger {
   }
 
   // For authentication events - extra careful
-  authLog(event, userId = null, email = null) {
+  authLog(event, userId = null, email = null, details = {}) {
     if (!isDevelopment) return
     
-    console.log(`Auth Event: ${event}`, {
+    console.log(`🔐 Auth Event: ${event}`, {
       userId,
       email,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...this.sanitizeData(details)
     })
+  }
+
+  // For security violations - always log (even in production for audit)
+  securityLog(event, userId = null, email = null, details = {}) {
+    const logData = {
+      event,
+      userId,
+      email,
+      timestamp: new Date().toISOString(),
+      ...this.sanitizeData(details)
+    }
+    
+    // Always log security events for audit trail
+    console.warn(`🚨 Security Event: ${event}`, logData)
+    
+    // In production, you would send this to a security monitoring service
+    if (!isDevelopment) {
+      // TODO: Send to security monitoring service
+      // Example: securityMonitoringService.logEvent(logData)
+    }
   }
 }
 

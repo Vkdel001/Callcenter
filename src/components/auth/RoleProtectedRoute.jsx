@@ -62,11 +62,13 @@ const RoleProtectedRoute = ({ children, requiredRole = null, requiredLOB = null 
     return <Navigate to="/unauthorized" replace />
   }
 
-  // Log successful authorized access (for audit trail)
-  secureLogger.authLog('AUTHORIZED_ACCESS', user.id, user.email, {
-    route: location.pathname,
-    userRole: user.role
-  })
+  // Log successful authorized access (for audit trail) - only in development
+  if (import.meta.env.DEV) {
+    secureLogger.authLog('AUTHORIZED_ACCESS', user.id, user.email, {
+      route: location.pathname,
+      userRole: user.role
+    })
+  }
 
   return children
 }

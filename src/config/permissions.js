@@ -130,7 +130,8 @@ export const ROLE_PERMISSIONS = {
   agent: {
     canAccess: [
       ...ROUTE_PERMISSIONS.AUTHENTICATED,
-      ...ROUTE_PERMISSIONS.CUSTOMER_ACCESS
+      ...ROUTE_PERMISSIONS.CUSTOMER_ACCESS,
+      ...ROUTE_PERMISSIONS.LOB_DASHBOARD  // Call center agents need LOB dashboard access
     ],
     lobAccess: 'LIMITED', // Limited customer access
     description: 'Call center agent'
@@ -139,7 +140,9 @@ export const ROLE_PERMISSIONS = {
   // Sales agent - customer creation and QR generation
   sales_agent: {
     canAccess: [
-      ...ROUTE_PERMISSIONS.AUTHENTICATED
+      ...ROUTE_PERMISSIONS.AUTHENTICATED,
+      ...ROUTE_PERMISSIONS.LOB_DASHBOARD,  // Sales agents need LOB dashboard access
+      ...ROUTE_PERMISSIONS.CUSTOMER_ACCESS  // Sales agents need customer access
     ],
     lobAccess: 'SALES_ONLY', // Can create customers, limited view
     description: 'Sales agent'
@@ -149,7 +152,8 @@ export const ROLE_PERMISSIONS = {
   csr: {
     canAccess: [
       ...ROUTE_PERMISSIONS.AUTHENTICATED,
-      ...ROUTE_PERMISSIONS.CUSTOMER_ACCESS
+      ...ROUTE_PERMISSIONS.CUSTOMER_ACCESS,
+      ...ROUTE_PERMISSIONS.LOB_DASHBOARD  // CSR agents need LOB dashboard access
     ],
     lobAccess: 'LIMITED', // Limited customer access
     description: 'Customer service representative'
@@ -232,10 +236,21 @@ export const permissionUtils = {
       // Map branch_id to LOB access
       const branchLOBMap = {
         13: ['CSL'], // CSL branch
+        1: ['LIFE'], // Branch 1 - Life insurance
         // Add other branch mappings as needed
       }
-      const branchLOBs = branchLOBMap[user.branch_id] || []
+      const branchLOBs = branchLOBMap[user.branch_id] || ['LIFE'] // Default to LIFE if branch not mapped
       return branchLOBs.includes(lob)
+    }
+
+    // Sales agents can access all LOBs for customer creation
+    if (rolePerms.lobAccess === 'SALES_ONLY') {
+      return true // Sales agents can work with all LOBs
+    }
+
+    // Limited access agents can view but not modify
+    if (rolePerms.lobAccess === 'LIMITED') {
+      return true // Allow viewing all LOBs with limited permissions
     }
 
     return false
@@ -260,9 +275,20 @@ export const permissionUtils = {
 
     if (rolePerms.lobAccess === 'BRANCH_BASED') {
       const branchLOBMap = {
-        13: ['CSL']
+        13: ['CSL'],
+        1: ['LIFE'] // Branch 1 - Life insurance
       }
-      return branchLOBMap[user.branch_id] || []
+      return branchLOBMap[user.branch_id] || ['LIFE'] // Default to LIFE
+    }
+
+    // Sales agents can work with all LOBs
+    if (rolePerms.lobAccess === 'SALES_ONLY') {
+      return ['LIFE', 'MOTOR', 'HEALTH', 'CSL']
+    }
+
+    // Limited access can view all LOBs
+    if (rolePerms.lobAccess === 'LIMITED') {
+      return ['LIFE', 'MOTOR', 'HEALTH', 'CSL']
     }
 
     return []

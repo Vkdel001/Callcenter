@@ -468,6 +468,16 @@ const LOBDashboard = () => {
 
   const { lobSummary, totalCustomers } = lobData || {}
 
+  // Debug: Log the LOB summary structure
+  console.log('🔍 LOB Dashboard Debug:', {
+    lobData,
+    lobSummary,
+    totalCustomers,
+    lifeData: lobSummary?.life,
+    healthData: lobSummary?.health,
+    motorData: lobSummary?.motor
+  })
+
   // If a month is selected via URL, show customer list
   if (month && customerListData) {
     const { customers, lob, month, totalAmount } = customerListData
@@ -1059,13 +1069,13 @@ const LOBDashboard = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Health Insurance</h3>
                 <div className="mt-2">
                   <div className="text-2xl font-bold text-blue-600">
-                    {lobSummary?.health?.count || 0}
+                    {(lobSummary && lobSummary.health && typeof lobSummary.health.count === 'number') ? lobSummary.health.count : 0}
                   </div>
                   <div className="text-sm text-gray-500">customers</div>
                 </div>
                 <div className="mt-2">
                   <div className="text-lg font-semibold text-gray-700">
-                    MUR {(lobSummary?.health?.totalAmount || 0).toLocaleString()}
+                    MUR {((lobSummary && lobSummary.health && typeof lobSummary.health.totalAmount === 'number') ? lobSummary.health.totalAmount : 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500">total amount due</div>
                 </div>
@@ -1096,13 +1106,13 @@ const LOBDashboard = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Motor Insurance</h3>
                 <div className="mt-2">
                   <div className="text-2xl font-bold text-orange-600">
-                    {lobSummary?.motor?.count || 0}
+                    {(lobSummary && lobSummary.motor && typeof lobSummary.motor.count === 'number') ? lobSummary.motor.count : 0}
                   </div>
                   <div className="text-sm text-gray-500">customers</div>
                 </div>
                 <div className="mt-2">
                   <div className="text-lg font-semibold text-gray-700">
-                    MUR {(lobSummary?.motor?.totalAmount || 0).toLocaleString()}
+                    MUR {((lobSummary && lobSummary.motor && typeof lobSummary.motor.totalAmount === 'number') ? lobSummary.motor.totalAmount : 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500">total amount due</div>
                 </div>

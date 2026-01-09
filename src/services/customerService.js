@@ -575,14 +575,13 @@ export const customerService = {
       }
 
       // Create WhatsApp message
-      const message = `Hi ${customer.name},
+      const message = `Dear Valued Customer,
 
-Your NIC Life Insurance policy ${customer.policyNumber} has a pending payment of MUR ${customer.amountDue.toLocaleString()}.
+Your policy ${customer.policyNumber} has a pending payment of MUR ${customer.amountDue.toLocaleString()}.
 
-Please scan the QR code that will be sent next to make payment via mobile banking.
+Please scan the QR code that will be sent next to make payment via Juice, MyT Money, blink, MauBank WithMe, SBM TAG.
 
-Thank you,
-NIC Life Insurance Mauritius`
+Thank you`
 
       // Create WhatsApp URL (universal - works on mobile and desktop)
       const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`

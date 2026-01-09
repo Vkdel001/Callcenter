@@ -357,30 +357,41 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
         .find(d => d.computer_name === computer_name);
     }
     
-    // Strategy 3: Find most recently seen online device (with or without agent)
-    // This handles agent shift changes and computer_name mismatches
+    // Strategy 3: Only link to unlinked devices or devices from the same agent
+    // This prevents device stealing between different agents
     if (!device) {
-      const onlineDevices = Object.values(registry.devices)
+      const availableDevices = Object.values(registry.devices)
         .filter(d => {
           const lastSeen = new Date(d.last_seen).getTime();
           const now = Date.now();
           const secondsSinceLastSeen = (now - lastSeen) / 1000;
-          return secondsSinceLastSeen < 30; // Just needs to be online
+          const isOnline = secondsSinceLastSeen < 30;
+          
+          // Only consider devices that are:
+          // 1. Online AND
+          // 2. Either unlinked (no agent_id) OR already linked to this same agent
+          return isOnline && (!d.agent_id || String(d.agent_id) === String(agent_id));
         })
         .sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
       
-      if (onlineDevices.length > 0) {
-        device = onlineDevices[0];
-        const previousAgent = device.agent_id;
+      if (availableDevices.length > 0) {
+        device = availableDevices[0];
         
+        // Log device linking behavior for debugging
+        const previousAgent = device.agent_id;
         if (previousAgent && previousAgent !== parseInt(agent_id)) {
           log('info', 'Re-linking device from previous agent (shift change)', { 
             device_id: device.device_id,
             previous_agent: previousAgent,
             new_agent: agent_id 
           });
+        } else if (!previousAgent) {
+          log('info', 'Linking unlinked device to agent', { 
+            device_id: device.device_id,
+            agent_id 
+          });
         } else {
-          log('info', 'Auto-linking to most recent online device', { 
+          log('info', 'Confirming existing device link', { 
             device_id: device.device_id,
             agent_id 
           });

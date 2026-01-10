@@ -186,11 +186,11 @@ class DeviceService {
    */
   async linkDevice(agentId, agentName) {
     try {
-      // Get computer name from browser (best effort)
-      const computerName = this.getComputerName();
-      
-      // Check if we have a previously linked device_id
+      // Check if we have a previously linked device_id (PRIMARY METHOD)
       const previousDeviceId = localStorage.getItem('linked_device_id');
+      
+      // Get computer name from browser (FALLBACK METHOD)
+      const computerName = this.getComputerName();
       
       // Use email as agent_id if it's a string (email format)
       const effectiveAgentId = (typeof agentId === 'string' && agentId.includes('@')) ? agentId : agentId;
@@ -198,8 +198,8 @@ class DeviceService {
       console.log('Linking device to agent:', { 
         agentId: effectiveAgentId, 
         agentName, 
-        computerName,
-        previousDeviceId 
+        deviceId: previousDeviceId,
+        computerName: previousDeviceId ? '(using device_id)' : computerName
       });
 
       const response = await fetch(`${this.serviceUrl}/api/device/link`, {
@@ -211,8 +211,8 @@ class DeviceService {
         body: JSON.stringify({
           agent_id: effectiveAgentId,
           agent_name: agentName,
-          computer_name: computerName,
-          device_id: previousDeviceId // Include previous device_id if available
+          device_id: previousDeviceId,  // PRIMARY: Use stored device ID first
+          computer_name: computerName   // FALLBACK: Keep for new devices
         })
       });
 
@@ -225,7 +225,18 @@ class DeviceService {
         return { success: true, device_id: data.device_id };
       } else {
         console.warn('Device linking failed:', data.error || data.message);
-        // Not critical - device might not be connected yet
+        
+        // If no device found and no previous device_id, show helpful message
+        if (!previousDeviceId && (data.error || '').includes('Device not found')) {
+          console.info('💡 Tip: Run the Windows device client first to register your device');
+          return { 
+            success: false, 
+            error: 'No device registered. Please run the Windows device client first to register your device.',
+            needsDeviceSetup: true
+          };
+        }
+        
+        // For other errors, return the original message
         return { success: false, error: data.error || data.message };
       }
     } catch (error) {
@@ -246,10 +257,32 @@ class DeviceService {
     const stored = localStorage.getItem('computer_name');
     if (stored) return stored;
 
-    // Generate from user agent and store
+    // Try to get from URL parameters (if Windows client passes it)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlComputerName = urlParams.get('computer_name');
+    if (urlComputerName) {
+      localStorage.setItem('computer_name', urlComputerName);
+      return urlComputerName;
+    }
+
+    // Try to get from session storage (if set by Windows client)
+    const sessionComputerName = sessionStorage.getItem('computer_name');
+    if (sessionComputerName) {
+      localStorage.setItem('computer_name', sessionComputerName);
+      return sessionComputerName;
+    }
+
+    // For browsers, we can't get the real computer name due to security restrictions
+    // Instead, we'll use a consistent identifier based on browser fingerprint
+    // This ensures the same browser always gets the same "computer name"
     const ua = navigator.userAgent;
     const platform = navigator.platform;
-    const computerName = `${platform}-${Date.now().toString(36)}`;
+    const screen = `${screen.width}x${screen.height}`;
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    // Create a consistent hash-like identifier
+    const fingerprint = btoa(`${platform}-${ua}-${screen}-${timezone}`).replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
+    const computerName = `BROWSER-${platform}-${fingerprint}`;
     
     localStorage.setItem('computer_name', computerName);
     return computerName;

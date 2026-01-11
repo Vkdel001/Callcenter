@@ -106,7 +106,18 @@ const AODModal = ({ isOpen, onClose, customer, existingPlan = null }) => {
       // Note: Installments are created but won't be active until signature is received
       let installments = []
       if (planDataWithSignature.payment_method === 'installments') {
-        installments = await installmentService.createInstallments(plan.id, schedule)
+        console.log('🔄 Creating installments with real customer data:', {
+          customerId: customer?.id,
+          customerName: customer?.name,
+          policyNumber: planDataWithSignature.policy_number
+        })
+        
+        installments = await installmentService.createInstallments(
+          plan.id, 
+          schedule, 
+          customer,  // Pass real customer data
+          plan       // Pass real payment plan data
+        )
       }
 
       return { plan, installments }

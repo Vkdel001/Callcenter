@@ -1,21 +1,45 @@
 import { paymentApi } from './apiClient'
 import { qrService } from './qrService'
 
+// Helper function to format customer name (max 24 characters)
+const formatCustomerName = (fullName) => {
+  if (!fullName) return 'Customer';
+  
+  const parts = fullName.trim().split(' ');
+  if (parts.length === 1) {
+    return parts[0].substring(0, 24);
+  }
+  
+  // First character of first name + last name
+  const firstName = parts[0];
+  const lastName = parts[parts.length - 1];
+  const formatted = `${firstName.charAt(0)} ${lastName}`;
+  
+  return formatted.substring(0, 24);
+};
+
 // Installment Service - handles individual installment operations
 export const installmentService = {
   // Create installments for a payment plan
-  async createInstallments(paymentPlanId, installmentSchedule) {
+  async createInstallments(paymentPlanId, installmentSchedule, customer, paymentPlan) {
     try {
       const installments = []
       
       for (const installmentData of installmentSchedule) {
-        // Generate QR code for each installment
+        // Generate QR code for each installment using REAL customer data
         const customerData = {
           amountDue: installmentData.amount,
-          policyNumber: `PLAN-${paymentPlanId}-${installmentData.installment_number}`,
-          name: `Installment ${installmentData.installment_number}`,
-          mobile: '23012345678' // Default mobile for installments
+          policyNumber: paymentPlan?.policy_number || `PLAN-${paymentPlanId}`,
+          name: formatCustomerName(customer?.name),
+          mobile: customer?.mobile || '23012345678', // Fallback to default if no mobile
+          lineOfBusiness: customer?.lineOfBusiness || 'life'
         }
+        
+        console.log(`🔄 Generating QR code for installment ${installmentData.installment_number} with real data:`, {
+          policyNumber: customerData.policyNumber,
+          customerName: customerData.name,
+          amount: customerData.amountDue
+        })
         
         const qrCodeData = await qrService.generatePaymentQR(customerData)
         
@@ -28,9 +52,19 @@ export const installmentService = {
           reminder_sent_count: 0
         }
         
+        // Log QR generation result
+        if (qrCodeData.success) {
+          console.log(`✅ QR code generated successfully for installment ${installmentData.installment_number}`)
+        } else {
+          console.error(`❌ QR code generation failed for installment ${installmentData.installment_number}:`, qrCodeData.error)
+        }
+        
         const response = await paymentApi.post('/nic_cc_installment', installment)
         installments.push(response.data)
       }
+      
+      const successCount = installments.filter(i => i.qr_code_url).length
+      console.log(`📊 Installment creation summary: ${successCount}/${installments.length} installments created with QR codes`)
       
       return installments
     } catch (error) {

@@ -125,6 +125,42 @@ setInterval(async () => {
 }, 60000);
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Find device for agent with strict matching rules
+ * Prevents agents from being linked to wrong devices
+ */
+function findDeviceForAgent(registry, agent_id, device_id, computer_name) {
+  let device = null;
+  
+  // Strategy 1: Find by exact device_id (HIGHEST PRIORITY)
+  if (device_id) {
+    device = registry.devices[device_id];
+    if (device) {
+      log('info', 'Device found by device_id', { device_id, agent_id });
+      return device;
+    }
+  }
+  
+  // Strategy 2: Find by exact computer_name match (MEDIUM PRIORITY)
+  if (computer_name) {
+    device = Object.values(registry.devices)
+      .find(d => d.computer_name === computer_name);
+    if (device) {
+      log('info', 'Device found by computer_name', { computer_name, device_id: device.device_id, agent_id });
+      return device;
+    }
+  }
+  
+  // Strategy 3: NO FALLBACK - Require exact matches only
+  // This prevents dangerous cross-device linking
+  log('warn', 'No device found with exact match', { agent_id, device_id, computer_name });
+  return null;
+}
+
+// ============================================================================
 // API ENDPOINTS
 // ============================================================================
 
@@ -343,67 +379,31 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
 
     const registry = await loadRegistry();
 
-    // Find device by device_id, computer_name, or most recent online device
-    let device;
-    
-    // Strategy 1: Find by exact device_id
-    if (device_id) {
-      device = registry.devices[device_id];
-    }
-    
-    // Strategy 2: Find by computer_name (exact match)
-    if (!device && computer_name) {
-      device = Object.values(registry.devices)
-        .find(d => d.computer_name === computer_name);
-    }
-    
-    // Strategy 3: Only link to unlinked devices or devices from the same agent
-    // This prevents device stealing between different agents
-    if (!device) {
-      const availableDevices = Object.values(registry.devices)
-        .filter(d => {
-          const lastSeen = new Date(d.last_seen).getTime();
-          const now = Date.now();
-          const secondsSinceLastSeen = (now - lastSeen) / 1000;
-          const isOnline = secondsSinceLastSeen < 30;
-          
-          // Only consider devices that are:
-          // 1. Online AND
-          // 2. Either unlinked (no agent_id) OR already linked to this same agent
-          return isOnline && (!d.agent_id || String(d.agent_id) === String(agent_id));
-        })
-        .sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
-      
-      if (availableDevices.length > 0) {
-        device = availableDevices[0];
-        
-        // Log device linking behavior for debugging
-        const previousAgent = device.agent_id;
-        if (previousAgent && previousAgent !== parseInt(agent_id)) {
-          log('info', 'Re-linking device from previous agent (shift change)', { 
-            device_id: device.device_id,
-            previous_agent: previousAgent,
-            new_agent: agent_id 
-          });
-        } else if (!previousAgent) {
-          log('info', 'Linking unlinked device to agent', { 
-            device_id: device.device_id,
-            agent_id 
-          });
-        } else {
-          log('info', 'Confirming existing device link', { 
-            device_id: device.device_id,
-            agent_id 
-          });
-        }
-      }
-    }
+    // Use strict device matching function
+    const device = findDeviceForAgent(registry, agent_id, device_id, computer_name);
 
     if (!device) {
       log('warn', 'Device not found for linking', { agent_id, computer_name, device_id });
       return res.status(404).json({ 
         error: 'Device not found',
-        message: 'No online device available. Please ensure the Windows client is running.'
+        message: 'No device found with exact match. Please ensure the Windows client is running and registered.'
+      });
+    }
+
+    // Verify device is online (within last 30 seconds)
+    const lastSeen = new Date(device.last_seen).getTime();
+    const now = Date.now();
+    const secondsSinceLastSeen = (now - lastSeen) / 1000;
+    
+    if (secondsSinceLastSeen > 30) {
+      log('warn', 'Device found but offline', { 
+        device_id: device.device_id, 
+        agent_id, 
+        seconds_since_last_seen: secondsSinceLastSeen 
+      });
+      return res.status(404).json({ 
+        error: 'Device offline',
+        message: 'Device found but appears to be offline. Please ensure the Windows client is running.'
       });
     }
 

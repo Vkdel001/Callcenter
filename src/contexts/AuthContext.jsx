@@ -48,9 +48,15 @@ export const AuthProvider = ({ children }) => {
         deviceService.linkDevice(agentId, userData.name)
           .then(result => {
             if (result.success) {
-              console.log('✅ Device linked successfully:', result.device_id)
+              console.log('✅ Device linked successfully:', result.device_id, `(${result.strategy})`)
             } else {
               console.warn('⚠️ Device linking failed:', result.error)
+              if (result.troubleshooting) {
+                console.log('🔍 Device linking troubleshooting info:', result.troubleshooting)
+              }
+              if (result.needsDeviceSetup) {
+                console.info('💡 Device setup required - Windows client needs to be running')
+              }
             }
           })
           .catch(err => {
@@ -79,9 +85,15 @@ export const AuthProvider = ({ children }) => {
       deviceService.linkDevice(agentId, response.user.name)
         .then(result => {
           if (result.success) {
-            console.log('✅ Device linked successfully:', result.device_id)
+            console.log('✅ Device linked successfully:', result.device_id, `(${result.strategy})`)
           } else {
             console.warn('⚠️ Device linking failed:', result.error)
+            if (result.troubleshooting) {
+              console.log('🔍 Device linking troubleshooting info:', result.troubleshooting)
+            }
+            if (result.needsDeviceSetup) {
+              console.info('💡 Device setup required - Windows client needs to be running')
+            }
           }
         })
         .catch(err => {

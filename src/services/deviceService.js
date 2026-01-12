@@ -189,103 +189,210 @@ class DeviceService {
       // Check if we have a previously linked device_id (PRIMARY METHOD)
       const previousDeviceId = localStorage.getItem('linked_device_id');
       
-      // Get computer name from browser (FALLBACK METHOD)
+      // Get computer name using improved detection (FALLBACK METHOD)
       const computerName = this.getComputerName();
       
       // Use email as agent_id if it's a string (email format)
       const effectiveAgentId = (typeof agentId === 'string' && agentId.includes('@')) ? agentId : agentId;
 
-      console.log('Linking device to agent:', { 
+      console.log('🔗 Device Linking Debug Info:', { 
         agentId: effectiveAgentId, 
         agentName, 
-        deviceId: previousDeviceId,
-        computerName: previousDeviceId ? '(using device_id)' : computerName
+        previousDeviceId: previousDeviceId || 'null',
+        computerName: computerName || 'null',
+        localStorage_device_id: localStorage.getItem('linked_device_id'),
+        localStorage_computer_name: localStorage.getItem('computer_name'),
+        strategy: previousDeviceId ? 'Using stored device_id' : 'Using computer_name detection'
       });
 
-      const response = await fetch(`${this.serviceUrl}/api/device/link`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.apiKey
+      // Try multiple linking strategies
+      const linkingStrategies = [
+        // Strategy 1: Use stored device_id (most reliable)
+        {
+          name: 'Stored Device ID',
+          payload: {
+            agent_id: effectiveAgentId,
+            agent_name: agentName,
+            device_id: previousDeviceId,
+            computer_name: computerName
+          },
+          condition: !!previousDeviceId
         },
-        body: JSON.stringify({
-          agent_id: effectiveAgentId,
-          agent_name: agentName,
-          device_id: previousDeviceId,  // PRIMARY: Use stored device ID first
-          computer_name: computerName   // FALLBACK: Keep for new devices
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        console.log('✓ Device linked successfully:', data.device_id);
-        // Store device ID in localStorage for future use
-        localStorage.setItem('linked_device_id', data.device_id);
-        return { success: true, device_id: data.device_id };
-      } else {
-        console.warn('Device linking failed:', data.error || data.message);
-        
-        // If no device found and no previous device_id, show helpful message
-        if (!previousDeviceId && (data.error || '').includes('Device not found')) {
-          console.info('💡 Tip: Run the Windows device client first to register your device');
-          return { 
-            success: false, 
-            error: 'No device registered. Please run the Windows device client first to register your device.',
-            needsDeviceSetup: true
-          };
+        // Strategy 2: Use detected computer name
+        {
+          name: 'Computer Name Detection',
+          payload: {
+            agent_id: effectiveAgentId,
+            agent_name: agentName,
+            computer_name: computerName
+          },
+          condition: !!computerName
+        },
+        // Strategy 3: Try with URL parameters (if Windows client passed them)
+        {
+          name: 'URL Parameters',
+          payload: {
+            agent_id: effectiveAgentId,
+            agent_name: agentName,
+            computer_name: this.getComputerNameFromURL()
+          },
+          condition: !!this.getComputerNameFromURL()
         }
-        
-        // For other errors, return the original message
-        return { success: false, error: data.error || data.message };
+      ];
+
+      // Try each strategy
+      for (const strategy of linkingStrategies) {
+        if (!strategy.condition) {
+          console.log(`⏭️ Skipping strategy "${strategy.name}" - condition not met`);
+          continue;
+        }
+
+        console.log(`🔄 Trying linking strategy: ${strategy.name}`, strategy.payload);
+
+        const response = await fetch(`${this.serviceUrl}/api/device/link`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': this.apiKey
+          },
+          body: JSON.stringify(strategy.payload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          console.log(`✅ Device linked successfully using "${strategy.name}":`, data.device_id);
+          // Store device ID in localStorage for future use
+          localStorage.setItem('linked_device_id', data.device_id);
+          // Also store the computer name that worked
+          if (strategy.payload.computer_name) {
+            localStorage.setItem('computer_name', strategy.payload.computer_name);
+          }
+          return { success: true, device_id: data.device_id, strategy: strategy.name };
+        } else {
+          console.warn(`❌ Strategy "${strategy.name}" failed:`, data.error || data.message);
+          
+          // If device is offline, provide specific guidance
+          if ((data.error || '').includes('offline')) {
+            console.info('💡 Device found but offline - Windows client may not be running');
+          }
+        }
       }
+
+      // All strategies failed
+      console.error('❌ All device linking strategies failed');
+      
+      // Provide detailed troubleshooting info
+      const troubleshootingInfo = {
+        previousDeviceId: previousDeviceId || 'Not stored',
+        detectedComputerName: computerName || 'Could not detect',
+        urlComputerName: this.getComputerNameFromURL() || 'Not provided',
+        userAgent: navigator.userAgent,
+        platform: navigator.platform
+      };
+      
+      console.log('🔍 Troubleshooting Info:', troubleshootingInfo);
+      
+      return { 
+        success: false, 
+        error: 'Device linking failed. Please ensure the Windows device client is running and registered.',
+        needsDeviceSetup: true,
+        troubleshooting: troubleshootingInfo
+      };
+
     } catch (error) {
-      console.warn('Device linking error:', error.message);
-      // Don't block login if device linking fails
+      console.error('❌ Device linking error:', error);
       return { success: false, error: error.message };
     }
   }
 
   /**
-   * Get computer name (best effort from browser)
+   * Get computer name (improved detection with multiple strategies)
    */
   getComputerName() {
-    // Try to get from various sources
-    // This is limited in browsers for security reasons
-    
-    // Check if already stored
+    // Strategy 1: Check if already stored
     const stored = localStorage.getItem('computer_name');
-    if (stored) return stored;
+    if (stored && stored !== 'null' && stored.trim() !== '') {
+      console.log('📱 Using stored computer name:', stored);
+      return stored;
+    }
 
-    // Try to get from URL parameters (if Windows client passes it)
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlComputerName = urlParams.get('computer_name');
+    // Strategy 2: Try to get from URL parameters (if Windows client passes it)
+    const urlComputerName = this.getComputerNameFromURL();
     if (urlComputerName) {
+      console.log('🔗 Using URL computer name:', urlComputerName);
       localStorage.setItem('computer_name', urlComputerName);
       return urlComputerName;
     }
 
-    // Try to get from session storage (if set by Windows client)
+    // Strategy 3: Try to get from session storage (if set by Windows client)
     const sessionComputerName = sessionStorage.getItem('computer_name');
-    if (sessionComputerName) {
+    if (sessionComputerName && sessionComputerName !== 'null' && sessionComputerName.trim() !== '') {
+      console.log('💾 Using session computer name:', sessionComputerName);
       localStorage.setItem('computer_name', sessionComputerName);
       return sessionComputerName;
     }
 
-    // For browsers, we can't get the real computer name due to security restrictions
-    // Instead, we'll use a consistent identifier based on browser fingerprint
-    // This ensures the same browser always gets the same "computer name"
+    // Strategy 4: Try to detect from hostname (limited browser support)
+    try {
+      if (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        const hostname = window.location.hostname.toUpperCase();
+        if (!hostname.includes('.') && hostname.length > 3) { // Likely a computer name, not a domain
+          console.log('🌐 Using hostname as computer name:', hostname);
+          localStorage.setItem('computer_name', hostname);
+          return hostname;
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Could not detect hostname:', error.message);
+    }
+
+    // Strategy 5: Generate consistent browser fingerprint (fallback)
     const ua = navigator.userAgent;
     const platform = navigator.platform;
-    const screen = `${screen.width}x${screen.height}`;
+    const screen = `${window.screen.width}x${window.screen.height}`;
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const language = navigator.language;
     
-    // Create a consistent hash-like identifier
-    const fingerprint = btoa(`${platform}-${ua}-${screen}-${timezone}`).replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
-    const computerName = `BROWSER-${platform}-${fingerprint}`;
+    // Create a more detailed fingerprint
+    const fingerprint = btoa(`${platform}-${ua}-${screen}-${timezone}-${language}`)
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 12);
     
+    const computerName = `BROWSER-${platform.replace(/\s+/g, '')}-${fingerprint}`;
+    
+    console.log('🔍 Generated browser fingerprint computer name:', computerName);
     localStorage.setItem('computer_name', computerName);
     return computerName;
+  }
+
+  /**
+   * Get computer name from URL parameters
+   */
+  getComputerNameFromURL() {
+    try {
+      // Check current URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlComputerName = urlParams.get('computer_name') || urlParams.get('computerName') || urlParams.get('pc_name');
+      
+      if (urlComputerName && urlComputerName.trim() !== '') {
+        return urlComputerName.trim();
+      }
+
+      // Check if computer name was passed in hash
+      const hash = window.location.hash;
+      if (hash.includes('computer_name=')) {
+        const match = hash.match(/computer_name=([^&]+)/);
+        if (match && match[1]) {
+          return decodeURIComponent(match[1]);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.log('⚠️ Error getting computer name from URL:', error.message);
+      return null;
+    }
   }
 
   /**

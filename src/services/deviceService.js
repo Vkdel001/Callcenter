@@ -207,7 +207,18 @@ class DeviceService {
 
       // Try multiple linking strategies
       const linkingStrategies = [
-        // Strategy 1: Use stored device_id (most reliable)
+        // Strategy 1: Use URL parameters (HIGHEST PRIORITY - from Windows client)
+        {
+          name: 'URL Parameters',
+          payload: {
+            agent_id: effectiveAgentId,
+            agent_name: agentName,
+            device_id: this.getDeviceIdFromURL(),
+            computer_name: this.getComputerNameFromURL()
+          },
+          condition: !!(this.getDeviceIdFromURL() || this.getComputerNameFromURL())
+        },
+        // Strategy 2: Use stored device_id (HIGH PRIORITY)
         {
           name: 'Stored Device ID',
           payload: {
@@ -218,7 +229,7 @@ class DeviceService {
           },
           condition: !!previousDeviceId
         },
-        // Strategy 2: Use detected computer name
+        // Strategy 3: Use detected computer name (FALLBACK)
         {
           name: 'Computer Name Detection',
           payload: {
@@ -226,17 +237,7 @@ class DeviceService {
             agent_name: agentName,
             computer_name: computerName
           },
-          condition: !!computerName
-        },
-        // Strategy 3: Try with URL parameters (if Windows client passed them)
-        {
-          name: 'URL Parameters',
-          payload: {
-            agent_id: effectiveAgentId,
-            agent_name: agentName,
-            computer_name: this.getComputerNameFromURL()
-          },
-          condition: !!this.getComputerNameFromURL()
+          condition: !!computerName && !computerName.startsWith('BROWSER-')
         }
       ];
 
@@ -268,6 +269,12 @@ class DeviceService {
           if (strategy.payload.computer_name) {
             localStorage.setItem('computer_name', strategy.payload.computer_name);
           }
+          
+          // If URL parameters were used, clean up the URL
+          if (strategy.name === 'URL Parameters' && this.isAutoLinkRequested()) {
+            this.cleanupURLParameters();
+          }
+          
           return { success: true, device_id: data.device_id, strategy: strategy.name };
         } else {
           console.warn(`❌ Strategy "${strategy.name}" failed:`, data.error || data.message);
@@ -287,6 +294,7 @@ class DeviceService {
         previousDeviceId: previousDeviceId || 'Not stored',
         detectedComputerName: computerName || 'Could not detect',
         urlComputerName: this.getComputerNameFromURL() || 'Not provided',
+        urlDeviceId: this.getDeviceIdFromURL() || 'Not provided',
         userAgent: navigator.userAgent,
         platform: navigator.platform
       };
@@ -392,6 +400,55 @@ class DeviceService {
     } catch (error) {
       console.log('⚠️ Error getting computer name from URL:', error.message);
       return null;
+    }
+  }
+
+  /**
+   * Get device ID from URL parameters
+   */
+  getDeviceIdFromURL() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlDeviceId = urlParams.get('device_id') || urlParams.get('deviceId');
+      
+      if (urlDeviceId && urlDeviceId.trim() !== '') {
+        return urlDeviceId.trim();
+      }
+
+      return null;
+    } catch (error) {
+      console.log('⚠️ Error getting device ID from URL:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Check if auto-linking is requested via URL
+   */
+  isAutoLinkRequested() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('auto_link') === 'true';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Clean up URL parameters after successful auto-linking
+   */
+  cleanupURLParameters() {
+    try {
+      const url = new URL(window.location);
+      url.searchParams.delete('computer_name');
+      url.searchParams.delete('device_id');
+      url.searchParams.delete('auto_link');
+      
+      // Update URL without reloading the page
+      window.history.replaceState({}, document.title, url.toString());
+      console.log('🧹 URL parameters cleaned up after successful auto-linking');
+    } catch (error) {
+      console.log('⚠️ Error cleaning up URL parameters:', error.message);
     }
   }
 

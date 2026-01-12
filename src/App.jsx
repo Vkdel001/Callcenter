@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { useEffect } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
+import { deviceService } from './services/deviceService'
 import { initializeScheduler, cleanupScheduler } from './utils/schedulerInit'
 import { initializeDatabaseCheck } from './utils/databaseFieldChecker'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -40,6 +41,29 @@ function App() {
   // Initialize scheduler and check database when app starts
   useEffect(() => {
     const initialize = async () => {
+      // Check for device auto-linking from Windows client
+      if (deviceService.isAutoLinkRequested()) {
+        const urlComputerName = deviceService.getComputerNameFromURL();
+        const urlDeviceId = deviceService.getDeviceIdFromURL();
+        
+        if (urlComputerName || urlDeviceId) {
+          console.log('🔗 Auto-linking requested from Windows client:', { 
+            computer_name: urlComputerName, 
+            device_id: urlDeviceId 
+          });
+          
+          // Store the values in localStorage for when user logs in
+          if (urlDeviceId) {
+            localStorage.setItem('linked_device_id', urlDeviceId);
+          }
+          if (urlComputerName) {
+            localStorage.setItem('computer_name', urlComputerName);
+          }
+          
+          console.log('✅ Device parameters stored for auto-linking on login');
+        }
+      }
+      
       // Check database schema first
       const dbCheck = await initializeDatabaseCheck()
 

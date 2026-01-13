@@ -131,6 +131,7 @@ setInterval(async () => {
 /**
  * Find device for agent with strict matching rules
  * Prevents agents from being linked to wrong devices
+ * FIXED: Handle multi-device concurrent linking properly
  */
 function findDeviceForAgent(registry, agent_id, device_id, computer_name) {
   let device = null;
@@ -145,18 +146,60 @@ function findDeviceForAgent(registry, agent_id, device_id, computer_name) {
   }
   
   // Strategy 2: Find by exact computer_name match (MEDIUM PRIORITY)
+  // FIXED: Only match devices that are NOT already linked to another agent
   if (computer_name) {
     device = Object.values(registry.devices)
-      .find(d => d.computer_name === computer_name);
+      .find(d => d.computer_name === computer_name && !d.agent_id);
     if (device) {
-      log('info', 'Device found by computer_name', { computer_name, device_id: device.device_id, agent_id });
+      log('info', 'Device found by computer_name (unlinked)', { computer_name, device_id: device.device_id, agent_id });
+      return device;
+    }
+    
+    // If no unlinked device found, check if there's a device with same computer_name already linked to THIS agent
+    device = Object.values(registry.devices)
+      .find(d => d.computer_name === computer_name && String(d.agent_id) === String(agent_id));
+    if (device) {
+      log('info', 'Device found by computer_name (already linked to same agent)', { computer_name, device_id: device.device_id, agent_id });
       return device;
     }
   }
   
-  // Strategy 3: NO FALLBACK - Require exact matches only
-  // This prevents dangerous cross-device linking
-  log('warn', 'No device found with exact match', { agent_id, device_id, computer_name });
+  // Strategy 3: Find any unlinked device for this agent (FALLBACK for multi-device setup)
+  // This handles cases where device registration happened but linking failed
+  const unlinkedDevices = Object.values(registry.devices)
+    .filter(d => !d.agent_id && d.status === 'online');
+  
+  if (unlinkedDevices.length > 0) {
+    // Sort by most recently registered/seen
+    device = unlinkedDevices.sort((a, b) => {
+      const timeA = new Date(a.last_seen).getTime();
+      const timeB = new Date(b.last_seen).getTime();
+      return timeB - timeA; // Most recent first
+    })[0];
+    
+    log('info', 'Device found by fallback (most recent unlinked)', { 
+      device_id: device.device_id, 
+      computer_name: device.computer_name,
+      agent_id,
+      total_unlinked: unlinkedDevices.length
+    });
+    return device;
+  }
+  
+  // Strategy 4: NO MATCH - Log detailed info for debugging
+  const totalDevices = Object.keys(registry.devices).length;
+  const onlineDevices = Object.values(registry.devices).filter(d => d.status === 'online').length;
+  const linkedDevices = Object.values(registry.devices).filter(d => d.agent_id).length;
+  
+  log('warn', 'No device found with any strategy', { 
+    agent_id, 
+    device_id: device_id || 'not_provided', 
+    computer_name: computer_name || 'not_provided',
+    total_devices: totalDevices,
+    online_devices: onlineDevices,
+    linked_devices: linkedDevices,
+    unlinked_devices: totalDevices - linkedDevices
+  });
   return null;
 }
 
@@ -379,14 +422,39 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
 
     const registry = await loadRegistry();
 
-    // Use strict device matching function
+    // Use improved device matching function
     const device = findDeviceForAgent(registry, agent_id, device_id, computer_name);
 
     if (!device) {
-      log('warn', 'Device not found for linking', { agent_id, computer_name, device_id });
+      // Provide detailed debugging info
+      const allDevices = Object.values(registry.devices);
+      const onlineDevices = allDevices.filter(d => d.status === 'online');
+      const unlinkedDevices = allDevices.filter(d => !d.agent_id && d.status === 'online');
+      
+      log('warn', 'Device not found for linking - detailed info', { 
+        agent_id, 
+        computer_name, 
+        device_id,
+        total_devices: allDevices.length,
+        online_devices: onlineDevices.length,
+        unlinked_devices: unlinkedDevices.length,
+        device_list: allDevices.map(d => ({
+          device_id: d.device_id,
+          computer_name: d.computer_name,
+          status: d.status,
+          agent_id: d.agent_id || 'unlinked',
+          last_seen: d.last_seen
+        }))
+      });
+      
       return res.status(404).json({ 
         error: 'Device not found',
-        message: 'No device found with exact match. Please ensure the Windows client is running and registered.'
+        message: 'No device found with exact match. Please ensure the Windows client is running and registered.',
+        debug_info: {
+          total_devices: allDevices.length,
+          online_devices: onlineDevices.length,
+          unlinked_devices: unlinkedDevices.length
+        }
       });
     }
 
@@ -407,6 +475,19 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
       });
     }
 
+    // Check if device is already linked to a different agent
+    if (device.agent_id && String(device.agent_id) !== String(agent_id)) {
+      log('warn', 'Device already linked to different agent', { 
+        device_id: device.device_id, 
+        current_agent: device.agent_id,
+        requested_agent: agent_id
+      });
+      return res.status(409).json({ 
+        error: 'Device already linked',
+        message: `Device is already linked to agent ${device.agent_id}. Please use a different device or unlink the current one.`
+      });
+    }
+
     // Link device to agent
     device.agent_id = parseInt(agent_id);
     device.agent_name = agent_name;
@@ -415,15 +496,18 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
     registry.devices[device.device_id] = device;
     await saveRegistry(registry);
 
-    log('info', 'Device linked to agent', { 
+    log('info', 'Device linked to agent successfully', { 
       device_id: device.device_id, 
+      computer_name: device.computer_name,
       agent_id, 
-      agent_name 
+      agent_name,
+      was_previously_linked: !!device.agent_id
     });
 
     res.json({ 
       success: true, 
-      device_id: device.device_id 
+      device_id: device.device_id,
+      computer_name: device.computer_name
     });
   } catch (error) {
     log('error', 'Linking error', { error: error.message });

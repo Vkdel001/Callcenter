@@ -11,7 +11,7 @@ const Sidebar = () => {
 
   // Different navigation for different agent types
   const salesAgentNavItems = [
-    { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/', icon: Home, label: 'Arrears Dashboard' },
     { to: '/follow-ups', icon: Calendar, label: 'Follow-Ups' },
     { to: '/quick-qr', icon: QrCode, label: 'Quick QR Generator' },
     { to: '/qr-summary', icon: BarChart3, label: 'My QR Performance' }

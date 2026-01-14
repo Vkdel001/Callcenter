@@ -35,8 +35,16 @@ const Login = () => {
             token: response.token
           }
         })
+      } else {
+        // Redirect based on agent type for better UX
+        if (response.userData?.agent_type === 'sales_agent') {
+          // Sales agents land on Quick QR Generator (instant load)
+          navigate('/quick-qr')
+        } else {
+          // Other agents land on Dashboard
+          navigate('/')
+        }
       }
-      // If no OTP required, user will be automatically redirected by ProtectedRoute
     } catch (err) {
       setError(err.message || 'Login failed')
     } finally {

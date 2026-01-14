@@ -37,11 +37,16 @@ const Login = () => {
         })
       } else {
         // Redirect based on agent type for better UX
+        console.log('Login successful - Agent type:', response.userData?.agent_type)
+        console.log('Full userData:', response.userData)
+        
         if (response.userData?.agent_type === 'sales_agent') {
           // Sales agents land on Quick QR Generator (instant load)
+          console.log('Redirecting sales agent to /quick-qr')
           navigate('/quick-qr')
         } else {
           // Other agents land on Dashboard
+          console.log('Redirecting to dashboard')
           navigate('/')
         }
       }

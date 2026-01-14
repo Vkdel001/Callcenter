@@ -66,10 +66,11 @@ class QRService {
   sanitizePolicyNumber(policyNumber) {
     if (!policyNumber) return ''
     
-    // Replace all hyphens and slashes with dots
+    // Replace hyphens with double dots, slashes with single dots
+    // This allows unambiguous reverse conversion in the webhook
     const sanitized = policyNumber
-      .replace(/-/g, '.')  // Replace all hyphens with dots
-      .replace(/\//g, '.')  // Replace all slashes with dots
+      .replace(/-/g, '..')  // Replace all hyphens with double dots
+      .replace(/\//g, '.')   // Replace all slashes with single dots
     
     console.log(`Policy number sanitized: "${policyNumber}" → "${sanitized}"`)
     return sanitized

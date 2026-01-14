@@ -65,7 +65,12 @@ const OTPVerification = () => {
         // Use the login context to set user data
         await login({ email, password: 'verified' }, userData, token)
         
-        navigate('/')
+        // Redirect based on agent type for better UX
+        if (userData?.agent_type === 'sales_agent') {
+          navigate('/quick-qr')  // Sales agents → Quick QR
+        } else {
+          navigate('/')  // Others → Dashboard
+        }
       } else {
         setError(result.error)
       }

@@ -477,15 +477,23 @@ app.post('/api/device/link', validateApiKey, async (req, res) => {
 
     // Check if device is already linked to a different agent
     if (device.agent_id && String(device.agent_id) !== String(agent_id)) {
-      log('warn', 'Device already linked to different agent', { 
+      log('info', 'Device transfer requested - shared workstation scenario', { 
         device_id: device.device_id, 
-        current_agent: device.agent_id,
-        requested_agent: agent_id
+        previous_agent: device.agent_id,
+        new_agent: agent_id,
+        computer_name: device.computer_name
       });
-      return res.status(409).json({ 
-        error: 'Device already linked',
-        message: `Device is already linked to agent ${device.agent_id}. Please use a different device or unlink the current one.`
+      
+      // Allow transfer for shared workstations
+      // Log the transfer for audit trail
+      log('info', 'Transferring device ownership', {
+        device_id: device.device_id,
+        from_agent: device.agent_id,
+        to_agent: agent_id,
+        reason: 'shared_workstation'
       });
+      
+      // Continue with linking (transfer will happen below)
     }
 
     // Link device to agent

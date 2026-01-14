@@ -60,6 +60,13 @@ class DeviceService {
    */
   async displayQR(qrImageUrl, customerData) {
     try {
+      // Auto-claim device before QR generation (for shared workstations)
+      const claimResult = await this.autoClaimDevice();
+      if (!claimResult.success) {
+        console.warn('⚠️ Device auto-claim failed, attempting QR anyway:', claimResult.error);
+        // Continue anyway - might still work if device was already linked
+      }
+
       // Get agent ID from localStorage (set during login)
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       // Use email as agent_id if id is not a number
@@ -175,6 +182,35 @@ class DeviceService {
       return data;
     } catch (error) {
       console.error('Reconnect error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Auto-claim device for current agent (for shared workstations)
+   * Call this before QR generation to ensure device is linked
+   */
+  async autoClaimDevice() {
+    try {
+      // Get current user
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const agentId = (typeof user.id === 'number') ? user.id : (user.email || user.id || 1);
+      const agentName = user.name || user.email || 'Agent';
+
+      console.log('🔄 Auto-claiming device for agent:', agentId);
+
+      // Try to link device (will transfer if already linked to another agent)
+      const result = await this.linkDevice(agentId, agentName);
+
+      if (result.success) {
+        console.log('✅ Device auto-claimed successfully');
+        return { success: true, device_id: result.device_id };
+      } else {
+        console.warn('⚠️ Device auto-claim failed:', result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      console.error('❌ Auto-claim error:', error);
       return { success: false, error: error.message };
     }
   }

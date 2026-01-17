@@ -5,54 +5,55 @@ import { secureLogger } from '../utils/secureLogger'
 export const authService = {
   async login(credentials) {
     try {
+      console.log('🔐 authService.login called with:', { email: credentials.email });
       secureLogger.authLog('LOGIN_ATTEMPT', null, credentials.email)
       
-      // Skip Xano auth for now, use simple CRUD approach
-      const response = await agentApi.get('/nic_cc_agent')
-      const allAgents = response.data || []
+      // ✅ Use Xano's auth endpoint
+      console.log('📡 Calling /auth/login endpoint...');
+      const response = await agentApi.post('/auth/login', {
+        email: credentials.email,
+        password: credentials.password
+      })
       
-      secureLogger.log('Retrieved agents count:', allAgents.length)
+      console.log('✅ /auth/login response:', response.data);
+      const { auth_token } = response.data
       
-      const agent = allAgents.find(a => 
-        a.email === credentials.email && 
-        a.active === true
-      )
-
-      if (!agent) {
-        secureLogger.authLog('LOGIN_FAILED_NO_USER', null, credentials.email)
-        throw new Error('Invalid email or password')
+      if (!auth_token) {
+        console.error('❌ No auth_token in response!');
+        throw new Error('No auth token received')
       }
+      
+      console.log('✅ Token received, length:', auth_token.length);
+      secureLogger.authLog('LOGIN_SUCCESS', null, credentials.email)
+      
+      // Store token temporarily to get user data
+      localStorage.setItem('auth_token', auth_token)
+      
+      // Get user details using the token
+      console.log('📡 Fetching agent details...');
+      const userResponse = await agentApi.get('/nic_cc_agent')
+      const allAgents = userResponse.data || []
+      console.log('✅ Got', allAgents.length, 'agents');
+      
+      const agent = allAgents.find(a => a.email === credentials.email)
+      
+      if (!agent) {
+        console.error('❌ Agent not found for email:', credentials.email);
+        throw new Error('User not found after authentication')
+      }
+
+      console.log('✅ Agent found:', { id: agent.id, name: agent.name, role: agent.role });
 
       // Temporary fix: manually set admin role for specific user
       let userRole = agent.role
       if (agent.email === 'vkdel001@gmail.com') {
         userRole = 'life_admin'  // Changed to life_admin for bulk agent creation access
-
       } else {
         userRole = agent.role || 'agent'
       }
+      
       secureLogger.authLog('USER_FOUND', agent.id, agent.email)
       
-      // Check all possible password fields
-      const passwordMatch = 
-        agent.password === credentials.password ||
-        agent.password_hash === credentials.password ||
-        agent.Password === credentials.password ||
-        agent.Password_Hash === credentials.password
-
-      if (!passwordMatch) {
-        secureLogger.authLog('LOGIN_FAILED_INVALID_PASSWORD', agent.id, agent.email)
-        throw new Error('Invalid email or password')
-      }
-
-      // Generate simple token
-      const token = btoa(JSON.stringify({
-        id: agent.id,
-        email: agent.email,
-        timestamp: Date.now()
-      }))
-
-      // Instead of returning immediately, send OTP first
       const userData = {
         id: agent.id,
         name: agent.name,
@@ -65,26 +66,36 @@ export const authService = {
       }
 
       // Send OTP
+      console.log('📧 Sending OTP to:', agent.email);
       const otpResult = await otpService.sendOTP(agent.email, agent.name)
+      console.log('📧 OTP result:', otpResult);
       
       if (!otpResult.success) {
+        console.error('❌ OTP sending failed:', otpResult.error);
         throw new Error('Failed to send verification code')
       }
 
+      console.log('✅ Login successful, returning OTP response');
       // Return special response indicating OTP sent
       return {
         requiresOTP: true,
         email: agent.email,
         name: agent.name,
         userData,
-        token,
+        token: auth_token,  // ✅ Now using Xano's JWT token
         message: 'Verification code sent to your email'
       }
     } catch (error) {
+      console.error('❌ Login error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       secureLogger.error('Login failed:', error)
       
-      if (error.message.includes('Invalid email or password')) {
-        throw error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error('Invalid email or password')
       }
       
       throw new Error('Login failed. Please try again.')

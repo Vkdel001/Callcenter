@@ -2,6 +2,27 @@
 
 @media (max-width: 768px) {
     
+    /* ===== HIDE CARD ICONS TO SAVE SPACE ===== */
+    /* Hide large decorative icons in dashboard cards */
+    .bg-green-50 svg,
+    .bg-blue-50 svg,
+    .bg-orange-50 svg,
+    .bg-purple-50 svg,
+    .bg-red-50 svg,
+    .bg-yellow-50 svg {
+        display: none !important;
+    }
+
+    /* Hide icon containers */
+    .bg-green-50,
+    .bg-blue-50,
+    .bg-orange-50,
+    .bg-purple-50,
+    .bg-red-50,
+    .bg-yellow-50 {
+        display: none !important;
+    }
+    
     /* Hide desktop sidebar */
     .sidebar,
     [class*="sidebar"],
@@ -235,5 +256,77 @@
         font-size: 20px !important;
         margin: 0 !important;
         text-align: center !important;
+    }
+}
+
+
+/* ===== TABLET OPTIMIZATION (768px - 1024px) ===== */
+@media (min-width: 768px) and (max-width: 1024px) {
+    
+    /* ===== HIDE CARD ICONS TO SAVE SPACE ===== */
+    /* Hide large decorative icons in dashboard cards */
+    .bg-green-50 svg,
+    .bg-blue-50 svg,
+    .bg-orange-50 svg,
+    .bg-purple-50 svg,
+    .bg-red-50 svg,
+    .bg-yellow-50 svg {
+        display: none !important;
+    }
+
+    /* Hide icon containers */
+    .bg-green-50,
+    .bg-blue-50,
+    .bg-orange-50,
+    .bg-purple-50,
+    .bg-red-50,
+    .bg-yellow-50 {
+        display: none !important;
+    }
+
+    /* ===== SIDEBAR OPTIMIZATION ===== */
+    aside.w-64 {
+        width: 200px !important;
+    }
+
+    /* ===== MAIN CONTENT AREA ===== */
+    .flex.flex-1 {
+        margin-left: 0 !important;
+    }
+
+    /* Adjust content padding */
+    .container,
+    .max-w-7xl {
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+
+    /* ===== LOB DASHBOARD CARDS ===== */
+    /* Keep 3-column layout but with better spacing */
+    .grid.grid-cols-1.md\\:grid-cols-3.gap-6 {
+        gap: 12px !important;
+    }
+
+    /* Reduce card padding slightly */
+    .bg-white.rounded-lg.shadow.p-6 {
+        padding: 16px !important;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h1 {
+        font-size: 22px !important;
+    }
+
+    h2 {
+        font-size: 19px !important;
+    }
+
+    /* ===== SPACING ADJUSTMENTS ===== */
+    .space-y-6 > * + * {
+        margin-top: 16px !important;
+    }
+
+    .gap-6 {
+        gap: 12px !important;
     }
 }

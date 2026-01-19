@@ -3,23 +3,23 @@
 @media (max-width: 768px) {
     
     /* ===== HIDE CARD ICONS TO SAVE SPACE ===== */
-    /* Hide large decorative icons in dashboard cards */
-    .bg-green-50 svg,
-    .bg-blue-50 svg,
-    .bg-orange-50 svg,
-    .bg-purple-50 svg,
-    .bg-red-50 svg,
-    .bg-yellow-50 svg {
+    /* Hide large decorative icons in dashboard cards only (not form elements) */
+    .grid .bg-green-50 svg,
+    .grid .bg-blue-50 svg,
+    .grid .bg-orange-50 svg,
+    .grid .bg-purple-50 svg,
+    .grid .bg-red-50 svg,
+    .grid .bg-yellow-50 svg {
         display: none !important;
     }
 
-    /* Hide icon containers */
-    .bg-green-50,
-    .bg-blue-50,
-    .bg-orange-50,
-    .bg-purple-50,
-    .bg-red-50,
-    .bg-yellow-50 {
+    /* Hide icon containers in dashboard cards only (not form elements) */
+    .grid > div > .bg-green-50,
+    .grid > div > .bg-blue-50,
+    .grid > div > .bg-orange-50,
+    .grid > div > .bg-purple-50,
+    .grid > div > .bg-red-50,
+    .grid > div > .bg-yellow-50 {
         display: none !important;
     }
     
@@ -264,23 +264,23 @@
 @media (min-width: 768px) and (max-width: 1024px) {
     
     /* ===== HIDE CARD ICONS TO SAVE SPACE ===== */
-    /* Hide large decorative icons in dashboard cards */
-    .bg-green-50 svg,
-    .bg-blue-50 svg,
-    .bg-orange-50 svg,
-    .bg-purple-50 svg,
-    .bg-red-50 svg,
-    .bg-yellow-50 svg {
+    /* Hide large decorative icons in dashboard cards only (not form elements) */
+    .grid .bg-green-50 svg,
+    .grid .bg-blue-50 svg,
+    .grid .bg-orange-50 svg,
+    .grid .bg-purple-50 svg,
+    .grid .bg-red-50 svg,
+    .grid .bg-yellow-50 svg {
         display: none !important;
     }
 
-    /* Hide icon containers */
-    .bg-green-50,
-    .bg-blue-50,
-    .bg-orange-50,
-    .bg-purple-50,
-    .bg-red-50,
-    .bg-yellow-50 {
+    /* Hide icon containers in dashboard cards only (not form elements) */
+    .grid > div > .bg-green-50,
+    .grid > div > .bg-blue-50,
+    .grid > div > .bg-orange-50,
+    .grid > div > .bg-purple-50,
+    .grid > div > .bg-red-50,
+    .grid > div > .bg-yellow-50 {
         display: none !important;
     }
 

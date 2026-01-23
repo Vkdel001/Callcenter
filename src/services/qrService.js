@@ -5,13 +5,15 @@ class QRService {
     this.merchantCodes = {
       life: '151',
       health: '153',
-      motor: '155'
+      motor: '155',
+      nonmotor: '171'
     }
     // Ad-hoc merchant codes (for Quick QR Generator - no callback)
     this.adHocMerchantCodes = {
       life: '151',
       health: '153',
-      motor: '155'
+      motor: '155',
+      nonmotor: '171'
     }
     // Fallback to old single merchant ID if new ones not configured
     this.defaultMerchantId = import.meta.env.VITE_ZWENNPAY_MERCHANT_ID || '56'
@@ -33,9 +35,9 @@ class QRService {
     const lob = lineOfBusiness.toLowerCase().trim()
     
     // Validate LOB is one of the expected values
-    const validLOBs = ['life', 'health', 'motor']
+    const validLOBs = ['life', 'health', 'motor', 'nonmotor']
     if (!validLOBs.includes(lob)) {
-      throw new Error(`❌ Invalid Line of Business: "${lineOfBusiness}". Must be one of: life, health, motor`)
+      throw new Error(`❌ Invalid Line of Business: "${lineOfBusiness}". Must be one of: life, health, motor, nonmotor`)
     }
     
     // Get merchant code for LOB
@@ -353,9 +355,9 @@ class QRService {
       const lineOfBusiness = customerData.lineOfBusiness.toLowerCase().trim()
       
       // Validate LOB is valid
-      const validLOBs = ['life', 'health', 'motor']
+      const validLOBs = ['life', 'health', 'motor', 'nonmotor']
       if (!validLOBs.includes(lineOfBusiness)) {
-        throw new Error(`❌ Invalid Line of Business: "${customerData.lineOfBusiness}". Must be one of: life, health, motor`)
+        throw new Error(`❌ Invalid Line of Business: "${customerData.lineOfBusiness}". Must be one of: life, health, motor, nonmotor`)
       }
       
       // Get ad-hoc merchant ID (151, 153, 155)

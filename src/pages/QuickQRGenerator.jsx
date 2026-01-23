@@ -322,12 +322,13 @@ const QuickQRGenerator = () => {
                 <option value="life">Life Insurance</option>
                 <option value="health">Health Insurance</option>
                 <option value="motor">Motor Insurance</option>
+                <option value="nonmotor">Non Motor Insurance</option>
               </select>
               {errors.lineOfBusiness && (
                 <p className="mt-1 text-sm text-red-600">{errors.lineOfBusiness.message}</p>
               )}
               <p className="mt-1 text-xs text-gray-500">
-                Merchant IDs: Life=151, Health=153, Motor=155
+                Merchant IDs: Life=151, Health=153, Motor=155, Non Motor=171
               </p>
             </div>
 
@@ -562,7 +563,7 @@ const QuickQRGenerator = () => {
                 <p><strong>Policy:</strong> {pendingFormData.policyNumber}</p>
                 <p><strong>Amount:</strong> MUR {parseFloat(pendingFormData.amountDue).toLocaleString()}</p>
                 <p><strong>LOB:</strong> {pendingFormData.lineOfBusiness.toUpperCase()} Insurance</p>
-                <p><strong>Merchant ID:</strong> {pendingFormData.lineOfBusiness === 'life' ? '151' : pendingFormData.lineOfBusiness === 'health' ? '153' : '155'}</p>
+                <p><strong>Merchant ID:</strong> {pendingFormData.lineOfBusiness === 'life' ? '151' : pendingFormData.lineOfBusiness === 'health' ? '153' : pendingFormData.lineOfBusiness === 'motor' ? '155' : pendingFormData.lineOfBusiness === 'nonmotor' ? '171' : '151'}</p>
               </div>
 
               <div>

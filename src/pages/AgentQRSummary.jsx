@@ -185,6 +185,7 @@ const AgentQRSummary = () => {
               <option value="life">Life Insurance</option>
               <option value="health">Health Insurance</option>
               <option value="motor">Motor Insurance</option>
+              <option value="nonmotor">Non Motor Insurance</option>
             </select>
           </div>
 

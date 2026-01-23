@@ -82,8 +82,8 @@ const CustomerUpload = () => {
     }
 
     // Validate line_of_business values
-    if (customer.line_of_business && !['life', 'health', 'motor'].includes(customer.line_of_business)) {
-      errors.push(`Line of business must be 'life', 'health', or 'motor'`)
+    if (customer.line_of_business && !['life', 'health', 'motor', 'nonmotor'].includes(customer.line_of_business)) {
+      errors.push(`Line of business must be 'life', 'health', 'motor', or 'nonmotor'`)
     }
 
     // Validate branch_id if provided
@@ -614,7 +614,7 @@ ${adminLOB.toUpperCase()}-003,Bob Johnson,57111003,bob@example.com,7500.25,pendi
                 <li><strong>mobile</strong> - Mobile phone number</li>
                 <li><strong>email</strong> - Email address</li>
                 <li><strong>amount_due</strong> - Outstanding amount (number)</li>
-                <li><strong>line_of_business</strong> - life, health, or motor {user?.admin_lob !== 'super_admin' && `(must be ${user?.admin_lob})`}</li>
+                <li><strong>line_of_business</strong> - life, health, motor, or nonmotor {user?.admin_lob !== 'super_admin' && `(must be ${user?.admin_lob})`}</li>
               </ul>
             </div>
             <div>

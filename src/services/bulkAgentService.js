@@ -165,7 +165,7 @@ class BulkAgentService {
         recordErrors.push({ field: 'agent_type', message: 'Invalid agent_type value' })
       }
 
-      if (record.admin_lob && !['life', 'health', 'motor'].includes(record.admin_lob)) {
+      if (record.admin_lob && !['life', 'health', 'motor', 'nonmotor'].includes(record.admin_lob)) {
         recordErrors.push({ field: 'admin_lob', message: 'Invalid admin_lob value' })
       }
 

@@ -153,15 +153,9 @@ class EmailService {
         sender  // Use LOB-specific sender
       }
 
-      // Always CC customer service
-      emailOptions.cc = [{
-        email: 'customerservice@nicl.mu',
-        name: 'Customer Service'
-      }]
-
-      // BCC agent if provided (keeps them informed but hidden)
+      // CC agent if provided (visible to customer)
       if (agentEmail) {
-        emailOptions.bcc = [{
+        emailOptions.cc = [{
           email: agentEmail,
           name: agentName || 'Agent'
         }]

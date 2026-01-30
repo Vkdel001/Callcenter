@@ -186,6 +186,7 @@ export const customerService = {
         id: customer.id,
         policyNumber: customer.policy_number,
         policy_number: customer.policy_number,  // Keep snake_case for compatibility
+        policy_type: customer.policy_type,  // Add policy type for conditional display
         name: customer.name,
         mobile: customer.mobile,
         email: customer.email,
@@ -1017,14 +1018,11 @@ Thank you`
     try {
       console.log(`Getting LOB summary for Internal Agent (branch ${branchId})`)
 
-      // Get all customers from all branches
-      const customersResponse = await customerApi.get('/nic_cc_customer')
-      const allCustomers = customersResponse.data || []
-
-      // Internal agents see only customers from their specific branch
-      const branchCustomers = allCustomers.filter(customer => 
-        customer.branch_id === parseInt(branchId)
-      )
+      // Get customers filtered by branch on server (optimized)
+      const customersResponse = await customerApi.get('/get_nic_cc_customers', {
+        params: { branch_id: branchId }
+      })
+      const branchCustomers = customersResponse.data || []
 
       console.log(`Internal agent has access to ${branchCustomers.length} customers in branch ${branchId}`)
 
@@ -1081,13 +1079,14 @@ Thank you`
     try {
       console.log(`Getting Internal Agent customers for Branch: ${branchId}, LOB: ${lob}, Month: ${month}`)
 
-      // Get all customers from all branches
-      const customersResponse = await customerApi.get('/nic_cc_customer')
+      // Get customers filtered by branch on server (optimized)
+      const customersResponse = await customerApi.get('/get_nic_cc_customers', {
+        params: { branch_id: branchId }
+      })
       const allCustomers = customersResponse.data || []
 
-      // Filter for Internal Agent: specific branch + LOB + month
+      // Filter for Internal Agent: LOB + month (branch already filtered by server)
       const filteredCustomers = allCustomers.filter(customer => 
-        customer.branch_id === parseInt(branchId) &&
         customer.line_of_business === lob &&
         this.normalizeMonthFormat(customer.assigned_month) === month
       )

@@ -153,6 +153,40 @@ async function sendPaymentEmail(payment, customer) {
       throw new Error('Customer email not found')
     }
     
+    // NEW: Get branch email from QR transaction if available
+    let branchEmail = null
+    let agentEmail = null
+    let agentName = null
+    
+    try {
+      const qrApi = axios.create({
+        baseURL: `${CONFIG.XANO_BASE_URL}/api:${CONFIG.XANO_QR_TRANSACTIONS_API}`,
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      const qrResponse = await qrApi.get('/nic_qr_transactions')
+      const allTransactions = qrResponse.data || []
+      
+      const matchingTransaction = allTransactions.find(tx => 
+        tx.policy_number === payment.policy_number && tx.status === 'paid'
+      )
+      
+      if (matchingTransaction) {
+        branchEmail = matchingTransaction.branch_email
+        agentEmail = matchingTransaction.agent_email
+        agentName = matchingTransaction.agent_name
+        
+        if (branchEmail) {
+          log(`   📧 Branch email found: ${branchEmail}`)
+        }
+        if (agentEmail) {
+          log(`   📧 Agent email found: ${agentEmail}`)
+        }
+      }
+    } catch (qrError) {
+      log(`   ⚠️ Could not fetch QR transaction for branch/agent emails: ${qrError.message}`)
+    }
+    
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -220,6 +254,21 @@ async function sendPaymentEmail(payment, customer) {
         email: customer.email,
         name: customer.name
       }],
+      // NEW: Add CC recipients (branch + agent)
+      ...(branchEmail || agentEmail ? {
+        cc: [
+          // Branch email (if available)
+          ...(branchEmail ? [{
+            email: branchEmail,
+            name: 'Branch Office'
+          }] : []),
+          // Agent email (if available)
+          ...(agentEmail ? [{
+            email: agentEmail,
+            name: agentName || 'Agent'
+          }] : [])
+        ]
+      } : {}),
       replyTo: {
         email: 'nicarlife@nicl.mu',
         name: 'NIC Life Customer Service'
@@ -229,6 +278,12 @@ async function sendPaymentEmail(payment, customer) {
     }
 
     log(`Sending email to ${customer.email} for payment ${payment.id}`)
+    if (branchEmail) {
+      log(`   CC: ${branchEmail} (Branch Office)`)
+    }
+    if (agentEmail) {
+      log(`   CC: ${agentEmail} (${agentName || 'Agent'})`)
+    }
     
     const response = await brevoApi.post('/smtp/email', payload)
     

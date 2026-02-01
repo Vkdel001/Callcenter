@@ -15,14 +15,16 @@ class QRTransactionService {
    * @param {Object} customerData - Customer information
    * @param {Object} agentData - Agent information
    * @param {string} qrType - 'customer_detail' or 'quick_qr'
+   * @param {Object} branchData - Branch information (optional)
    * @returns {Promise<Object>} Created transaction record
    */
-  async logQRGeneration(qrData, customerData, agentData, qrType) {
+  async logQRGeneration(qrData, customerData, agentData, qrType, branchData = null) {
     try {
       console.log('🔄 Logging QR transaction...', {
         qrType,
         policyNumber: customerData.policyNumber,
-        agentId: agentData?.id
+        agentId: agentData?.id,
+        branchId: branchData?.id
       })
 
       const transaction = {
@@ -39,6 +41,9 @@ class QRTransactionService {
         agent_name: agentData?.name || null,
         qr_type: qrType,
         customer_id: customerData.id || null,
+        // NEW: Branch information
+        branch_id: branchData?.id || null,
+        branch_email: branchData?.notification_email || null,
         status: 'pending',
         created_at: new Date().toISOString()
       }
@@ -46,6 +51,9 @@ class QRTransactionService {
       const response = await qrTransactionsApi.post(this.baseUrl, transaction)
       
       console.log('✅ QR transaction logged successfully:', response.data.id)
+      if (branchData) {
+        console.log('📧 Branch email will be notified:', branchData.notification_email)
+      }
       
       return {
         success: true,

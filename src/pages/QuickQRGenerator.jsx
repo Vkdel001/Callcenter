@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useMutation } from 'react-query'
+import { useMutation, useQuery } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { customerService } from '../services/customerService'
 import { deviceService } from '../services/deviceService'
-import { QrCode, User, CreditCard, Phone, Hash, DollarSign, MessageSquare, Mail, X } from 'lucide-react'
+import { branchApi } from '../services/apiClient'
+import { QrCode, User, CreditCard, Phone, Hash, DollarSign, MessageSquare, Mail, X, Building2 } from 'lucide-react'
 import { formatCurrency } from '../utils/currency'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -17,8 +18,26 @@ const QuickQRGenerator = () => {
   const [pendingFormData, setPendingFormData] = useState(null)
   const [confirmationInput, setConfirmationInput] = useState('')
   const [policyType, setPolicyType] = useState('new') // Default to "New Policy" for sales agents
+  const [selectedBranch, setSelectedBranch] = useState(null)
 
   const { register, handleSubmit, reset, watch, clearErrors, formState: { errors } } = useForm()
+  
+  // Fetch branches (only active branches with notification emails)
+  const { data: branches = [] } = useQuery(
+    'branches',
+    async () => {
+      try {
+        const response = await branchApi.get('/nic_cc_branch')
+        return (response.data || []).filter(b => b.active && b.notification_email)
+      } catch (error) {
+        console.error('Failed to fetch branches:', error)
+        return []
+      }
+    },
+    {
+      enabled: isSalesAgent && policyType === 'new' // Only fetch when needed
+    }
+  )
   
   // Watch form fields for validation
   const watchedLOB = watch('lineOfBusiness')
@@ -37,7 +56,7 @@ const QuickQRGenerator = () => {
   }, [isNIDRequired, clearErrors])
 
   const generateQRMutation = useMutation(
-    (customerData) => customerService.generateQRCode(customerData, user, 'quick_qr'),
+    ({ customerData, branchData }) => customerService.generateQRCode(customerData, user, 'quick_qr', branchData),
     {
       onSuccess: async (data) => {
         if (data.success === false) {
@@ -204,8 +223,15 @@ const QuickQRGenerator = () => {
       lineOfBusiness: pendingFormData.lineOfBusiness
     }
 
+    // Pass branch data if selected (new policy mode)
+    const branchData = isNewPolicyMode && selectedBranch ? {
+      id: selectedBranch.id,
+      name: selectedBranch.name,
+      notification_email: selectedBranch.notification_email
+    } : null
+
     setShowConfirmDialog(false)
-    generateQRMutation.mutate(customerData)
+    generateQRMutation.mutate({ customerData, branchData })
   }
 
   const handleSendWhatsApp = () => {
@@ -298,12 +324,51 @@ const QuickQRGenerator = () => {
               </label>
               <select
                 value={policyType}
-                onChange={(e) => setPolicyType(e.target.value)}
+                onChange={(e) => {
+                  setPolicyType(e.target.value)
+                  setSelectedBranch(null) // Reset branch when switching policy type
+                }}
                 className="w-full px-3 py-2 border border-red-300 rounded-md focus:ring-red-500 focus:border-red-500 bg-white"
               >
                 <option value="new">New Policy (Application Form)</option>
                 <option value="existing">Existing Policy (Payment Reminder)</option>
               </select>
+            </div>
+          )}
+
+          {/* Branch Selector (New Policy Mode Only) */}
+          {isNewPolicyMode && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <label className="flex items-center text-sm font-medium text-blue-700 mb-2">
+                <Building2 className="h-4 w-4 mr-1 text-blue-600" />
+                Select Branch *
+              </label>
+              <select
+                value={selectedBranch?.id || ''}
+                onChange={(e) => {
+                  const branch = branches.find(b => b.id === parseInt(e.target.value))
+                  setSelectedBranch(branch)
+                }}
+                required={isNewPolicyMode}
+                className="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Select Branch</option>
+                {branches.map(branch => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.notification_email})
+                  </option>
+                ))}
+              </select>
+              {branches.length === 0 && (
+                <p className="mt-1 text-xs text-blue-600">
+                  No branches with notification emails configured. Contact admin to set up branch emails.
+                </p>
+              )}
+              {selectedBranch && (
+                <p className="mt-1 text-xs text-blue-600">
+                  ✓ Payment confirmations will be sent to {selectedBranch.notification_email}
+                </p>
+              )}
             </div>
           )}
 
@@ -510,7 +575,7 @@ const QuickQRGenerator = () => {
           <div className="flex justify-center pt-4">
             <button
               type="submit"
-              disabled={generateQRMutation.isLoading || !isPolicyValid()}
+              disabled={generateQRMutation.isLoading || !isPolicyValid() || (isNewPolicyMode && !selectedBranch)}
               className="flex items-center px-8 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               <QrCode className="h-5 w-5 mr-2" />
@@ -519,6 +584,11 @@ const QuickQRGenerator = () => {
             {!isPolicyValid() && watchedLOB && watchedPolicyNumber && shouldValidatePolicy && (
               <p className="ml-4 text-sm text-red-600 self-center">
                 ⚠️ Please fix policy number format
+              </p>
+            )}
+            {isNewPolicyMode && !selectedBranch && (
+              <p className="ml-4 text-sm text-red-600 self-center">
+                ⚠️ Please select a branch
               </p>
             )}
           </div>

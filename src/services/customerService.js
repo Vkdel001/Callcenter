@@ -509,7 +509,7 @@ export const customerService = {
     }
   },
 
-  async generateQRCode(customerData, agentData = null, qrType = 'customer_detail') {
+  async generateQRCode(customerData, agentData = null, qrType = 'customer_detail', branchData = null) {
     const { qrService } = await import('./qrService')
     const { qrTransactionService } = await import('./qrTransactionService')
 
@@ -527,7 +527,8 @@ export const customerService = {
               transactionAmount: result.transactionAmount
             },
             agentData,
-            qrType
+            qrType,
+            branchData  // Pass branch data to transaction log
           )
 
           console.log('QR transaction logged:', logResult.success ? 'Success' : 'Failed')

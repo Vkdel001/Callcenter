@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useForm } from 'react-hook-form'
 import { agentApi, branchApi } from '../../services/apiClient'
-import { Building2, Plus, Edit, Trash2, MapPin, Users, X } from 'lucide-react'
+import { Building2, Plus, Edit, Trash2, MapPin, Users, X, Mail } from 'lucide-react'
 
 const BranchManagement = () => {
   const queryClient = useQueryClient()
@@ -78,6 +78,7 @@ const BranchManagement = () => {
       name: data.name,
       code: data.code.toUpperCase(),
       address: data.address || '',
+      notification_email: data.notification_email || null,
       active: true
     })
   }
@@ -87,7 +88,8 @@ const BranchManagement = () => {
     reset({
       name: branch.name,
       code: branch.code,
-      address: branch.address || ''
+      address: branch.address || '',
+      notification_email: branch.notification_email || ''
     })
     setShowModal(true)
   }
@@ -171,9 +173,16 @@ const BranchManagement = () => {
             </div>
 
             {branch.address && (
-              <div className="flex items-center text-sm text-gray-600 mb-3">
+              <div className="flex items-center text-sm text-gray-600 mb-2">
                 <MapPin className="h-4 w-4 mr-2" />
                 {branch.address}
+              </div>
+            )}
+
+            {branch.notification_email && (
+              <div className="flex items-center text-sm text-gray-600 mb-3">
+                <Mail className="h-4 w-4 mr-2" />
+                {branch.notification_email}
               </div>
             )}
 
@@ -271,6 +280,29 @@ const BranchManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Branch address (optional)"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notification Email
+                </label>
+                <input
+                  {...register('notification_email', {
+                    pattern: {
+                      value: /^\S+@\S+$/i,
+                      message: 'Invalid email format'
+                    }
+                  })}
+                  type="email"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="branch@nicl.mu (optional)"
+                />
+                {errors.notification_email && (
+                  <p className="mt-1 text-sm text-red-600">{errors.notification_email.message}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Group email for payment notifications (e.g., portlouis@nicl.mu)
+                </p>
               </div>
 
               <div className="flex space-x-3 pt-4">

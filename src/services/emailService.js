@@ -916,14 +916,6 @@ This is an automated message. Please do not reply to this email.
         <p style="margin: 15px 0 5px 0; font-size: 14px; color: #666;">
           Scan this QR code with your mobile banking app to pay instantly
         </p>
-        <div style="background: ${isGmailCompatible ? '#e8f5e8' : '#fff3cd'}; padding: 8px; border-radius: 4px; margin: 10px 0;">
-          <p style="font-size: 11px; color: ${isGmailCompatible ? '#2d5a2d' : '#856404'}; margin: 0;">
-            ${isGmailCompatible ? 
-              '✅ This QR code works in ALL email clients including Gmail' : 
-              '📧 Gmail users: Click "Display images" at the top of this email to see the QR code'
-            }
-          </p>
-        </div>
       </div>
       `
     }

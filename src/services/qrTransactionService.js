@@ -426,6 +426,216 @@ class QRTransactionService {
       }
     }
   }
+
+  /**
+   * Get admin QR performance report (Agent Summary View)
+   * @param {Object} filters - { date_from, date_to, line_of_business, agent_id, qr_type }
+   * @returns {Promise<Object>} { success, data: { summary, agentPerformance } }
+   */
+  async getAdminQRPerformanceReport(filters = {}) {
+    try {
+      console.log('📊 Fetching admin QR performance report...', filters)
+
+      // Fetch all QR transactions
+      const response = await qrTransactionsApi.get(this.baseUrl)
+      let transactions = response.data || []
+
+      // Apply date range filter
+      if (filters.date_from) {
+        const startDate = new Date(filters.date_from)
+        startDate.setHours(0, 0, 0, 0)
+        transactions = transactions.filter(t => new Date(t.created_at) >= startDate)
+      }
+      if (filters.date_to) {
+        const endDate = new Date(filters.date_to)
+        endDate.setHours(23, 59, 59, 999)
+        transactions = transactions.filter(t => new Date(t.created_at) <= endDate)
+      }
+
+      // Apply LOB filter
+      if (filters.line_of_business && filters.line_of_business !== 'all') {
+        transactions = transactions.filter(t => t.line_of_business === filters.line_of_business)
+      }
+
+      // Apply agent filter (by agent_name since agent ID is not reliable)
+      if (filters.agent_name) {
+        transactions = transactions.filter(t => t.agent_name === filters.agent_name)
+      }
+
+      // Apply QR type filter
+      if (filters.qr_type && filters.qr_type !== 'all') {
+        transactions = transactions.filter(t => t.qr_type === filters.qr_type)
+      }
+
+      // Group transactions by agent_name
+      const agentMap = new Map()
+
+      transactions.forEach(transaction => {
+        const agentName = transaction.agent_name || 'Unknown Agent'
+        
+        if (!agentMap.has(agentName)) {
+          agentMap.set(agentName, {
+            agent_name: agentName,
+            agent_email: transaction.agent_email || 'N/A',
+            qrs_generated: 0,
+            payments_received: 0,
+            amount_generated: 0,
+            amount_collected: 0,
+            last_activity: transaction.created_at
+          })
+        }
+
+        const agentData = agentMap.get(agentName)
+        agentData.qrs_generated++
+        agentData.amount_generated += parseFloat(transaction.amount || 0)
+
+        if (transaction.status === 'paid') {
+          agentData.payments_received++
+          agentData.amount_collected += parseFloat(transaction.payment_amount || transaction.amount || 0)
+        }
+
+        // Update last activity if this transaction is more recent
+        if (new Date(transaction.created_at) > new Date(agentData.last_activity)) {
+          agentData.last_activity = transaction.created_at
+        }
+      })
+
+      // Convert to array and calculate rates
+      const agentPerformance = Array.from(agentMap.values()).map(agent => ({
+        ...agent,
+        conversion_rate: agent.qrs_generated > 0 
+          ? ((agent.payments_received / agent.qrs_generated) * 100).toFixed(1)
+          : '0.0',
+        collection_rate: agent.amount_generated > 0
+          ? ((agent.amount_collected / agent.amount_generated) * 100).toFixed(1)
+          : '0.0'
+      }))
+
+      // Sort by conversion rate (descending)
+      agentPerformance.sort((a, b) => parseFloat(b.conversion_rate) - parseFloat(a.conversion_rate))
+
+      // Calculate overall summary
+      const summary = {
+        total_qrs_generated: transactions.length,
+        total_payments_received: transactions.filter(t => t.status === 'paid').length,
+        overall_conversion_rate: transactions.length > 0
+          ? ((transactions.filter(t => t.status === 'paid').length / transactions.length) * 100).toFixed(1)
+          : '0.0',
+        total_amount_generated: transactions.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0),
+        total_amount_collected: transactions
+          .filter(t => t.status === 'paid')
+          .reduce((sum, t) => sum + parseFloat(t.payment_amount || t.amount || 0), 0),
+        overall_collection_rate: 0
+      }
+
+      summary.overall_collection_rate = summary.total_amount_generated > 0
+        ? ((summary.total_amount_collected / summary.total_amount_generated) * 100).toFixed(1)
+        : '0.0'
+
+      console.log('✅ QR performance report generated:', {
+        agents: agentPerformance.length,
+        transactions: transactions.length
+      })
+
+      return {
+        success: true,
+        data: {
+          summary,
+          agentPerformance
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to generate QR performance report:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Get all QR transactions (Detailed Transactions View)
+   * @param {Object} filters - { date_from, date_to, line_of_business, agent_name, qr_type, page, per_page }
+   * @returns {Promise<Object>} { success, data: { transactions, total, summary } }
+   */
+  async getAllQRTransactions(filters = {}) {
+    try {
+      console.log('📋 Fetching all QR transactions...', filters)
+
+      // Fetch all QR transactions
+      const response = await qrTransactionsApi.get(this.baseUrl)
+      let transactions = response.data || []
+
+      // Apply date range filter
+      if (filters.date_from) {
+        const startDate = new Date(filters.date_from)
+        startDate.setHours(0, 0, 0, 0)
+        transactions = transactions.filter(t => new Date(t.created_at) >= startDate)
+      }
+      if (filters.date_to) {
+        const endDate = new Date(filters.date_to)
+        endDate.setHours(23, 59, 59, 999)
+        transactions = transactions.filter(t => new Date(t.created_at) <= endDate)
+      }
+
+      // Apply LOB filter
+      if (filters.line_of_business && filters.line_of_business !== 'all') {
+        transactions = transactions.filter(t => t.line_of_business === filters.line_of_business)
+      }
+
+      // Apply agent filter
+      if (filters.agent_name) {
+        transactions = transactions.filter(t => t.agent_name === filters.agent_name)
+      }
+
+      // Apply QR type filter
+      if (filters.qr_type && filters.qr_type !== 'all') {
+        transactions = transactions.filter(t => t.qr_type === filters.qr_type)
+      }
+
+      // Sort by created_at (newest first)
+      transactions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+      // Calculate summary
+      const summary = {
+        total_qrs: transactions.length,
+        total_paid: transactions.filter(t => t.status === 'paid').length,
+        total_pending: transactions.filter(t => t.status === 'pending').length,
+        total_expired: transactions.filter(t => t.status === 'expired').length
+      }
+
+      // Apply pagination if specified
+      const page = filters.page || 1
+      const perPage = filters.per_page || 50
+      const startIndex = (page - 1) * perPage
+      const endIndex = startIndex + perPage
+      const paginatedTransactions = transactions.slice(startIndex, endIndex)
+
+      console.log('✅ QR transactions fetched:', {
+        total: transactions.length,
+        page,
+        returned: paginatedTransactions.length
+      })
+
+      return {
+        success: true,
+        data: {
+          transactions: paginatedTransactions,
+          total: transactions.length,
+          summary,
+          page,
+          per_page: perPage,
+          total_pages: Math.ceil(transactions.length / perPage)
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch QR transactions:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
 }
 
 export const qrTransactionService = new QRTransactionService()

@@ -235,5 +235,124 @@ export const reportService = {
       console.error('Failed to export CSV:', error)
       return { success: false, error: error.message }
     }
+  },
+
+  async exportQRAgentSummaryToCSV(agentPerformance, summary, dateRange, filename) {
+    try {
+      const headers = [
+        'Agent Name',
+        'Agent Email',
+        'QRs Generated',
+        'Payments Received',
+        'Conversion Rate (%)',
+        'Amount Generated (MUR)',
+        'Amount Collected (MUR)',
+        'Collection Rate (%)',
+        'Last Activity Date'
+      ]
+      
+      const csvContent = [
+        `QR Performance Report - Agent Summary`,
+        `Date Range: ${dateRange.startDate} to ${dateRange.endDate}`,
+        ``,
+        `Summary Metrics:`,
+        `Total QRs Generated,${summary.total_qrs_generated}`,
+        `Total Payments Received,${summary.total_payments_received}`,
+        `Overall Conversion Rate,${summary.overall_conversion_rate}%`,
+        `Total Amount Generated,${summary.total_amount_generated.toFixed(2)}`,
+        `Total Amount Collected,${summary.total_amount_collected.toFixed(2)}`,
+        `Overall Collection Rate,${summary.overall_collection_rate}%`,
+        ``,
+        headers.join(','),
+        ...agentPerformance.map(agent => [
+          `"${agent.agent_name}"`,
+          `"${agent.agent_email}"`,
+          agent.qrs_generated,
+          agent.payments_received,
+          agent.conversion_rate,
+          agent.amount_generated.toFixed(2),
+          agent.amount_collected.toFixed(2),
+          agent.collection_rate,
+          new Date(agent.last_activity).toLocaleDateString()
+        ].join(','))
+      ].join('\n')
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob)
+        link.setAttribute('href', url)
+        link.setAttribute('download', filename)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to export QR agent summary CSV:', error)
+      return { success: false, error: error.message }
+    }
+  },
+
+  async exportQRAllTransactionsToCSV(transactions, dateRange, filename) {
+    try {
+      const headers = [
+        'Transaction ID',
+        'Date/Time Generated',
+        'Agent Name',
+        'Agent Email',
+        'Customer Name',
+        'Policy Number',
+        'Line of Business',
+        'QR Type',
+        'Amount (MUR)',
+        'Payment Amount (MUR)',
+        'Status',
+        'Paid Date/Time'
+      ]
+      
+      const csvContent = [
+        `QR Performance Report - All Transactions`,
+        `Date Range: ${dateRange.startDate} to ${dateRange.endDate}`,
+        `Total Transactions: ${transactions.length}`,
+        ``,
+        headers.join(','),
+        ...transactions.map(txn => [
+          txn.id,
+          new Date(txn.created_at).toLocaleString(),
+          `"${txn.agent_name || 'N/A'}"`,
+          `"${txn.agent_email || 'N/A'}"`,
+          `"${txn.customer_name || 'N/A'}"`,
+          `"${txn.policy_number || 'N/A'}"`,
+          txn.line_of_business || 'N/A',
+          txn.qr_type || 'N/A',
+          parseFloat(txn.amount || 0).toFixed(2),
+          parseFloat(txn.payment_amount || 0).toFixed(2),
+          txn.status || 'pending',
+          txn.paid_at ? new Date(txn.paid_at).toLocaleString() : 'N/A'
+        ].join(','))
+      ].join('\n')
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob)
+        link.setAttribute('href', url)
+        link.setAttribute('download', filename)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to export QR transactions CSV:', error)
+      return { success: false, error: error.message }
+    }
   }
 }

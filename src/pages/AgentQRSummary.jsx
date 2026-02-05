@@ -2,14 +2,20 @@ import { useState, useEffect } from 'react'
 import { useQuery } from 'react-query'
 import { useAuth } from '../contexts/AuthContext'
 import { qrTransactionService } from '../services/qrTransactionService'
-import { QrCode, TrendingUp, Clock, CheckCircle, XCircle, Calendar, BarChart3, Eye, RefreshCw } from 'lucide-react'
+import { QrCode, TrendingUp, Clock, CheckCircle, XCircle, BarChart3, Eye, RefreshCw, Download, ChevronDown, FileSpreadsheet } from 'lucide-react'
 import { formatCurrency } from '../utils/currency'
+import { exportQRTransactionsToExcel } from '../utils/excelExport'
 
 const AgentQRSummary = () => {
   const { user } = useAuth()
   const [selectedPeriod, setSelectedPeriod] = useState('30') // days
   const [selectedLOB, setSelectedLOB] = useState('all')
   const [showDetails, setShowDetails] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // Calculate date range
   const getDateRange = (days) => {
@@ -51,6 +57,19 @@ const AgentQRSummary = () => {
   const calculateStats = () => {
     const transactions = qrHistory.transactions || []
     
+    // Sort all transactions
+    const sortedTransactions = transactions
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    
+    // Calculate pagination
+    const totalTransactions = sortedTransactions.length
+    const totalPages = Math.ceil(totalTransactions / pageSize)
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    
+    // Get paginated transactions
+    const paginatedTransactions = sortedTransactions.slice(startIndex, endIndex)
+    
     const stats = {
       total_generated: transactions.length,
       total_paid: transactions.filter(t => t.status === 'paid').length,
@@ -62,9 +81,17 @@ const AgentQRSummary = () => {
       conversion_rate: 0,
       by_lob: {},
       by_qr_type: {},
-      recent_transactions: transactions
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 10)
+      
+      // Pagination data
+      recent_transactions: paginatedTransactions,
+      pagination: {
+        currentPage,
+        pageSize,
+        totalTransactions,
+        totalPages,
+        startIndex: startIndex + 1,
+        endIndex: Math.min(endIndex, totalTransactions)
+      }
     }
 
     // Calculate conversion rate
@@ -102,6 +129,122 @@ const AgentQRSummary = () => {
   }
 
   const stats = calculateStats()
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedPeriod, selectedLOB])
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showExportMenu && !event.target.closest('.export-menu-container')) {
+        setShowExportMenu(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showExportMenu])
+
+  // Export handler
+  const handleExport = (exportType) => {
+    let transactionsToExport = []
+    
+    switch (exportType) {
+      case 'current':
+        // Export only current page
+        transactionsToExport = stats.recent_transactions
+        break
+      case 'all':
+        // Export all transactions
+        transactionsToExport = (qrHistory.transactions || [])
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        break
+      case 'summary':
+        // Export all with summary
+        transactionsToExport = (qrHistory.transactions || [])
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        break
+    }
+    
+    const filters = {
+      period: `Last ${selectedPeriod} days`,
+      lob: selectedLOB
+    }
+    
+    try {
+      const filename = exportQRTransactionsToExcel(
+        transactionsToExport,
+        stats,
+        exportType,
+        filters
+      )
+      
+      // Show success message
+      alert(`Successfully exported ${transactionsToExport.length} transactions to ${filename}`)
+      
+      // Close menu
+      setShowExportMenu(false)
+    } catch (error) {
+      console.error('Export failed:', error)
+      alert('Failed to export data. Please try again.')
+    }
+  }
+
+  // Page number rendering helper
+  const renderPageNumbers = () => {
+    const totalPages = stats.pagination.totalPages
+    const current = currentPage
+    const pages = []
+    
+    if (totalPages <= 1) return null
+    
+    // Always show first page
+    pages.push(1)
+    
+    // Show pages around current page
+    if (current > 3) {
+      pages.push('...')
+    }
+    
+    for (let i = Math.max(2, current - 1); i <= Math.min(totalPages - 1, current + 1); i++) {
+      pages.push(i)
+    }
+    
+    // Show last page
+    if (current < totalPages - 2) {
+      pages.push('...')
+    }
+    
+    if (totalPages > 1) {
+      pages.push(totalPages)
+    }
+    
+    return pages.map((page, index) => {
+      if (page === '...') {
+        return (
+          <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+            ...
+          </span>
+        )
+      }
+      
+      return (
+        <button
+          key={page}
+          onClick={() => setCurrentPage(page)}
+          className={`px-3 py-1 rounded-md text-sm font-medium ${
+            currentPage === page
+              ? 'bg-blue-600 text-white'
+              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          {page}
+        </button>
+      )
+    })
+  }
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -148,13 +291,52 @@ const AgentQRSummary = () => {
           <h1 className="text-2xl font-bold text-gray-900">My QR Performance</h1>
           <p className="text-gray-600">Track your QR code generation and payment success rates</p>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
+          
+          <div className="relative export-menu-container">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Download className="h-4 w-4" />
+              Export to Excel
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border z-10">
+                <button
+                  onClick={() => handleExport('current')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 rounded-t-lg"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Export Current Page ({stats.pagination.endIndex - stats.pagination.startIndex + 1} rows)
+                </button>
+                <button
+                  onClick={() => handleExport('all')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Export All Transactions ({stats.total_generated} rows)
+                </button>
+                <button
+                  onClick={() => handleExport('summary')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 border-t rounded-b-lg"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Export with Summary
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -408,6 +590,72 @@ const AgentQRSummary = () => {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Controls */}
+        {stats.pagination.totalTransactions > 0 && (
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              
+              {/* Left: Page Info */}
+              <div className="text-sm text-gray-700">
+                Showing <span className="font-medium">{stats.pagination.startIndex}</span> to{' '}
+                <span className="font-medium">{stats.pagination.endIndex}</span> of{' '}
+                <span className="font-medium">{stats.pagination.totalTransactions}</span> transactions
+              </div>
+              
+              {/* Center: Page Size Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-700">Show:</label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-gray-700">per page</span>
+              </div>
+              
+              {/* Right: Page Navigation */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1 rounded-md text-sm font-medium ${
+                    currentPage === 1
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {renderPageNumbers()}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(stats.pagination.totalPages, prev + 1))}
+                  disabled={currentPage === stats.pagination.totalPages}
+                  className={`px-3 py-1 rounded-md text-sm font-medium ${
+                    currentPage === stats.pagination.totalPages
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+              
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Performance Tips */}

@@ -215,7 +215,8 @@ npm run build
 
 ### Deploy to Netlify
 ```bash
-# Auto-deploy on push to main branch
+# Awq
+uto-deploy on push to main branch
 git add .
 git commit -m "feat: add pagination and Excel export to Agent QR Performance"
 git push origin main

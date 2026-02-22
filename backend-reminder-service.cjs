@@ -18,8 +18,8 @@ const CONFIG = {
   XANO_CUSTOMER_API: process.env.VITE_XANO_CUSTOMER_API || 'Q4jDYUWL',
   XANO_PAYMENT_API: process.env.VITE_XANO_PAYMENT_API || '05i62DIx',
 
-  // Brevo API Configuration
-  BREVO_API_KEY: process.env.VITE_BREVO_API_KEY || '',
+  // Email Service Configuration
+  EMAIL_SERVICE_URL: 'http://localhost:3005',
   SENDER_EMAIL: process.env.VITE_SENDER_EMAIL || 'arrears@niclmauritius.site',
   SENDER_NAME: process.env.VITE_SENDER_NAME || 'NIC Life Insurance Mauritius',
 
@@ -278,40 +278,36 @@ class ZwennPayQRService {
   }
 }
 
-class BrevoSMSService {
-  static async sendSMS(to, message) {
+class EmailServiceClient {
+  static async sendEmail(to, subject, htmlContent, cc = null, replyTo = null) {
     return new Promise((resolve, reject) => {
-      // Format phone number for Mauritius (+230)
-      let phoneNumber = to.toString().replace(/\D/g, ''); // Remove non-digits
-      if (phoneNumber.length === 8 && !phoneNumber.startsWith('230')) {
-        phoneNumber = '230' + phoneNumber; // Add Mauritius prefix
-      }
-      if (!phoneNumber.startsWith('+')) {
-        phoneNumber = '+' + phoneNumber;
-      }
-
-      const smsData = {
-        sender: 'NIC',
-        recipient: phoneNumber,
-        content: message
+      const payload = {
+        sender: {
+          name: CONFIG.SENDER_NAME,
+          email: CONFIG.SENDER_EMAIL
+        },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: htmlContent,
+        ...(cc && { cc }),
+        ...(replyTo && { replyTo })
       };
 
-      const postData = JSON.stringify(smsData);
+      const postData = JSON.stringify(payload);
+      const urlObj = new URL(`${CONFIG.EMAIL_SERVICE_URL}/api/email/send`);
 
       const options = {
-        hostname: 'api.brevo.com',
-        port: 443,
-        path: '/v3/transactionalSMS/sms',
+        hostname: urlObj.hostname,
+        port: urlObj.port || 3005,
+        path: urlObj.pathname,
         method: 'POST',
         headers: {
-          'accept': 'application/json',
-          'api-key': CONFIG.BREVO_API_KEY,
-          'content-type': 'application/json',
+          'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
         }
       };
 
-      const req = https.request(options, (res) => {
+      const req = http.request(options, (res) => {
         let responseData = '';
 
         res.on('data', (chunk) => {
@@ -319,22 +315,29 @@ class BrevoSMSService {
         });
 
         res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            Logger.info('SMS sent successfully', { to: phoneNumber });
-            resolve({ success: true, response: responseData });
-          } else {
-            Logger.error('SMS sending failed', {
-              to: phoneNumber,
-              statusCode: res.statusCode,
-              response: responseData
-            });
-            reject(new Error(`SMS sending failed: ${res.statusCode}`));
+          try {
+            const parsed = JSON.parse(responseData);
+            
+            if (res.statusCode >= 200 && res.statusCode < 300 && parsed.success) {
+              Logger.info('Email sent successfully', { to, subject });
+              resolve({ success: true, response: parsed });
+            } else {
+              Logger.error('Email sending failed', {
+                to,
+                subject,
+                statusCode: res.statusCode,
+                response: responseData
+              });
+              reject(new Error(`Email sending failed: ${parsed.error || res.statusCode}`));
+            }
+          } catch (error) {
+            reject(new Error('Failed to parse email service response'));
           }
         });
       });
 
       req.on('error', (error) => {
-        Logger.error('SMS request failed', { to: phoneNumber, error: error.message });
+        Logger.error('Email request failed', { to, subject, error: error.message });
         reject(error);
       });
 
@@ -342,37 +345,39 @@ class BrevoSMSService {
       req.end();
     });
   }
-}
 
-class BrevoEmailService {
-  static async sendEmail(to, subject, htmlContent) {
+  static async sendSMS(to, message) {
     return new Promise((resolve, reject) => {
-      const emailData = {
-        sender: {
-          name: CONFIG.SENDER_NAME,
-          email: CONFIG.SENDER_EMAIL
-        },
-        to: [{ email: to }],
-        subject: subject,
-        htmlContent: htmlContent
+      // Format phone number for Mauritius (+230)
+      let phoneNumber = to.toString().replace(/\D/g, '');
+      if (phoneNumber.length === 8 && !phoneNumber.startsWith('230')) {
+        phoneNumber = '230' + phoneNumber;
+      }
+      if (!phoneNumber.startsWith('+')) {
+        phoneNumber = '+' + phoneNumber;
+      }
+
+      const payload = {
+        sender: 'NIC Life',
+        recipient: phoneNumber,
+        content: message
       };
 
-      const postData = JSON.stringify(emailData);
+      const postData = JSON.stringify(payload);
+      const urlObj = new URL(`${CONFIG.EMAIL_SERVICE_URL}/api/email/send-sms`);
 
       const options = {
-        hostname: 'api.brevo.com',
-        port: 443,
-        path: '/v3/smtp/email',
+        hostname: urlObj.hostname,
+        port: urlObj.port || 3005,
+        path: urlObj.pathname,
         method: 'POST',
         headers: {
-          'accept': 'application/json',
-          'api-key': CONFIG.BREVO_API_KEY,
-          'content-type': 'application/json',
+          'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
         }
       };
 
-      const req = https.request(options, (res) => {
+      const req = http.request(options, (res) => {
         let responseData = '';
 
         res.on('data', (chunk) => {
@@ -380,23 +385,28 @@ class BrevoEmailService {
         });
 
         res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            Logger.info('Email sent successfully', { to, subject });
-            resolve({ success: true, response: responseData });
-          } else {
-            Logger.error('Email sending failed', {
-              to,
-              subject,
-              statusCode: res.statusCode,
-              response: responseData
-            });
-            reject(new Error(`Email sending failed: ${res.statusCode}`));
+          try {
+            const parsed = JSON.parse(responseData);
+            
+            if (res.statusCode >= 200 && res.statusCode < 300 && parsed.success) {
+              Logger.info('SMS sent successfully', { to: phoneNumber });
+              resolve({ success: true, response: parsed });
+            } else {
+              Logger.error('SMS sending failed', {
+                to: phoneNumber,
+                statusCode: res.statusCode,
+                response: responseData
+              });
+              reject(new Error(`SMS sending failed: ${parsed.error || res.statusCode}`));
+            }
+          } catch (error) {
+            reject(new Error('Failed to parse email service response'));
           }
         });
       });
 
       req.on('error', (error) => {
-        Logger.error('Email request failed', { to, subject, error: error.message });
+        Logger.error('SMS request failed', { to: phoneNumber, error: error.message });
         reject(error);
       });
 
@@ -663,7 +673,7 @@ class ReminderService {
     `;
 
     try {
-      await BrevoEmailService.sendEmail(customer.email, subject, htmlContent);
+      await EmailServiceClient.sendEmail(customer.email, subject, htmlContent);
       Logger.info('Payment reminder sent', {
         customerId: customer.id,
         email: customer.email,
@@ -685,7 +695,7 @@ class ReminderService {
     const message = `NIC Life Insurance: ${isOverdue ? 'OVERDUE' : 'Payment Due'} - MUR ${installment.amount} ${isOverdue ? 'was' : ''} due ${dueDate}. Pay now: ${reminderUrl}. Ignore if already paid.`;
 
     try {
-      await BrevoSMSService.sendSMS(customer.mobile, message);
+      await EmailServiceClient.sendSMS(customer.mobile, message);
       Logger.info('Payment SMS sent', {
         customerId: customer.id,
         mobile: customer.mobile,
@@ -733,7 +743,7 @@ class ReminderService {
     `;
 
     try {
-      await BrevoEmailService.sendEmail(customer.email, subject, htmlContent);
+      await EmailServiceClient.sendEmail(customer.email, subject, htmlContent);
       Logger.info('Signature reminder sent', {
         customerId: customer.id,
         email: customer.email

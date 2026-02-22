@@ -27,7 +27,7 @@ const CONFIG = {
   CHECK_INTERVAL: 60 * 1000,        // Check every 1 minute
   PAYMENT_WINDOW: 10 * 60 * 1000,   // Look back 10 minutes for new payments
   LOG_FILE: '/var/log/nic-payment-notification.log',
-  BREVO_API_KEY: process.env.VITE_BREVO_API_KEY,
+  EMAIL_SERVICE_URL: 'http://localhost:3005',  // Centralized email service
   XANO_BASE_URL: process.env.VITE_XANO_BASE_URL,
   XANO_PAYMENT_API: process.env.VITE_XANO_PAYMENT_API,
   XANO_CUSTOMER_API: process.env.VITE_XANO_CUSTOMER_API,
@@ -37,11 +37,6 @@ const CONFIG = {
 }
 
 // Validate configuration
-if (!CONFIG.BREVO_API_KEY) {
-  console.error('❌ VITE_BREVO_API_KEY not found in environment variables')
-  process.exit(1)
-}
-
 if (!CONFIG.XANO_BASE_URL || !CONFIG.XANO_PAYMENT_API || !CONFIG.XANO_CUSTOMER_API) {
   console.error('❌ Xano configuration not found in environment variables')
   process.exit(1)
@@ -58,13 +53,9 @@ const customerApi = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-const brevoApi = axios.create({
-  baseURL: 'https://api.brevo.com/v3',
-  headers: {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    'api-key': CONFIG.BREVO_API_KEY
-  }
+const emailServiceApi = axios.create({
+  baseURL: CONFIG.EMAIL_SERVICE_URL,
+  headers: { 'Content-Type': 'application/json' }
 })
 
 // Logging utility
@@ -102,7 +93,7 @@ function formatPhoneForSMS(phoneNumber) {
   return `+230${cleaned}`
 }
 
-// Send SMS via Brevo
+// Send SMS via centralized email service
 async function sendPaymentSMS(payment, customer) {
   try {
     const formattedPhone = formatPhoneForSMS(payment.mobile_number)
@@ -119,8 +110,6 @@ Thank you!
 Ref: ${payment.transaction_reference}`
 
     const payload = {
-      type: 'transactional',
-      unicodeEnabled: false,
       sender: 'NIC Life',
       recipient: formattedPhone,
       content: message
@@ -128,13 +117,13 @@ Ref: ${payment.transaction_reference}`
 
     log(`Sending SMS to ${formattedPhone} for payment ${payment.id}`)
     
-    const response = await brevoApi.post('/transactionalSMS/sms', payload)
+    const response = await emailServiceApi.post('/api/email/send-sms', payload)
     
-    log(`✅ SMS sent successfully. Message ID: ${response.data.reference}`)
+    log(`✅ SMS sent successfully. Message ID: ${response.data.messageId}`)
     
     return {
       success: true,
-      messageId: response.data.reference
+      messageId: response.data.messageId
     }
     
   } catch (error) {
@@ -285,7 +274,7 @@ async function sendPaymentEmail(payment, customer) {
       log(`   CC: ${agentEmail} (${agentName || 'Agent'})`)
     }
     
-    const response = await brevoApi.post('/smtp/email', payload)
+    const response = await emailServiceApi.post('/api/email/send', payload)
     
     log(`✅ Email sent successfully. Message ID: ${response.data.messageId}`)
     
@@ -426,7 +415,7 @@ log('🚀 NIC Payment Notification Service Starting...')
 log(`📊 Configuration:`)
 log(`   Check Interval: ${CONFIG.CHECK_INTERVAL / 1000} seconds`)
 log(`   Xano Base URL: ${CONFIG.XANO_BASE_URL}`)
-log(`   Brevo API: Configured`)
+log(`   Email Service: ${CONFIG.EMAIL_SERVICE_URL}`)
 log(`   Log File: ${CONFIG.LOG_FILE}`)
 
 // Run immediately on startup

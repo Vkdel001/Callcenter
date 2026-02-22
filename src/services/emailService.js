@@ -3,10 +3,8 @@ import { QRGenerator } from '../utils/qrGenerator'
 
 class EmailService {
   constructor() {
-    this.brevoApiUrl = 'https://api.brevo.com/v3'
-    this.apiKey = import.meta.env.VITE_BREVO_API_KEY
-
-
+    // Backend email service URL (no API key in frontend!)
+    this.emailServiceUrl = import.meta.env.VITE_EMAIL_SERVICE_URL || 'http://localhost:3003'
   }
 
   async sendTransactionalEmail({
@@ -49,26 +47,26 @@ class EmailService {
         ...(attachments.length > 0 && { attachment: attachments })
       }
 
-      const response = await fetch(`${this.brevoApiUrl}/smtp/email`, {
+      // Call backend email service instead of Brevo directly
+      const response = await fetch(`${this.emailServiceUrl}/api/email/send`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'api-key': this.apiKey
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(`Brevo API Error: ${error.message || response.statusText}`)
+        throw new Error(`Email Service Error: ${error.error || response.statusText}`)
       }
 
       const result = await response.json()
       return {
         success: true,
         messageId: result.messageId,
-        data: result
+        data: result.data
       }
     } catch (error) {
       console.error('Email sending failed:', error)
@@ -431,10 +429,9 @@ This is an automated message. Please do not reply to this email.
   // Get email templates from Brevo (optional)
   async getTemplates() {
     try {
-      const response = await fetch(`${this.brevoApiUrl}/smtp/templates`, {
+      const response = await fetch(`${this.emailServiceUrl}/api/email/templates`, {
         headers: {
-          'Accept': 'application/json',
-          'api-key': this.apiKey
+          'Accept': 'application/json'
         }
       })
 
@@ -442,7 +439,8 @@ This is an automated message. Please do not reply to this email.
         throw new Error(`Failed to fetch templates: ${response.statusText}`)
       }
 
-      return await response.json()
+      const result = await response.json()
+      return result.templates || []
     } catch (error) {
       console.error('Failed to fetch email templates:', error)
       return { templates: [] }
@@ -740,33 +738,31 @@ This is an automated message. Please do not reply to this email.
       console.log(`Sending SMS to: ${to} -> formatted: ${formattedPhone}`)
 
       const payload = {
-        type: 'transactional',
-        unicodeEnabled: false,
         sender: sender.substring(0, 11), // SMS sender max 11 chars
         recipient: formattedPhone,
         content: message
       }
 
-      const response = await fetch(`${this.brevoApiUrl}/transactionalSMS/sms`, {
+      // Call backend email service for SMS
+      const response = await fetch(`${this.emailServiceUrl}/api/email/send-sms`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'api-key': this.apiKey
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(`Brevo SMS API Error: ${error.message || response.statusText}`)
+        throw new Error(`SMS Service Error: ${error.error || response.statusText}`)
       }
 
       const result = await response.json()
       return {
         success: true,
-        messageId: result.reference,
-        data: result
+        messageId: result.messageId,
+        data: result.data
       }
     } catch (error) {
       console.error('SMS sending failed:', error)

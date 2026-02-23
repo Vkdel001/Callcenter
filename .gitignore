@@ -140,3 +140,48 @@ test-*.html
 test-*.py
 test-*.csv
 test-*.json
+
+# additional ignores ...to be reviewed 
+
+# Documentation files (if you don't want to track them)
+*_COMPLETE.md
+*_PLAN.md
+*_GUIDE.md
+*_ANALYSIS.md
+*_IMPLEMENTATION*.md
+*_FIX*.md
+*_SUMMARY.md
+
+# Deployment scripts (if temporary)
+deploy-*.bat
+deploy-*.sh
+fix-*.bat
+fix-*.sh
+debug-*.sh
+verify-*.sh
+restart-*.sh
+
+# Backup/versioned files
+*_[0-9][0-9]jan[0-9][0-9][0-9][0-9].*
+*_[0-9][0-9]Jan[0-9][0-9][0-9][0-9].*
+*_[0-9][0-9]feb[0-9][0-9][0-9][0-9].*
+*_[0-9][0-9]Feb[0-9][0-9][0-9][0-9].*
+* - Copy.*
+
+# Test files (already covered but being explicit)
+test-*.cjs
+brevo-*.js
+brevo-*.cjs
+verify-*.cjs
+
+# Build scripts
+build-*.bat
+build-*.ps1
+start-*.bat
+
+# Logs and transaction files
+*.txt
+!README.txt
+
+# Temporary vite files
+vite.config.js.timestamp-*

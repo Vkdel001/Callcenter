@@ -14,6 +14,9 @@ class Config:
         self.vps_url = os.getenv('VPS_URL', 'https://payments.niclmauritius.site')
         self.api_key = os.getenv('API_KEY', '+uqlz4/syAvctehh7+AV2cThGb1qrO7xqsTM8kYOwlI=')
         
+        # Web App Configuration
+        self.web_app_url = os.getenv('WEB_APP_URL', 'https://payments.niclmauritius.site')
+        
         # Computer Information
         self.computer_name = self.get_computer_name()
         
@@ -26,12 +29,21 @@ class Config:
         # Polling Configuration
         self.poll_interval = 2  # seconds
         
-        # ESP32 Configuration
-        self.esp32_baud_rate = 9600
+        # ESP32 Configuration (Enhanced)
+        self.esp32_baud_rates = [9600, 115200, 230400, 57600, 38400, 19200]  # Try multiple baud rates
         self.esp32_timeout = 5
         self.device_width = 320
         self.device_height = 480
         self.chunk_size = 1024
+        
+        # Enhanced USB chip detection keywords
+        self.esp32_keywords = [
+            "USB Serial", "CH340", "CH341",           # WCH chips (common)
+            "CP210", "CP2102", "CP2104", "CP2108",   # Silicon Labs chips (very common)
+            "FT232", "FTDI",                         # FTDI chips
+            "PL2303", "Prolific",                    # Prolific chips
+            "Silicon Labs", "UART", "USB-SERIAL"     # Generic identifiers
+        ]
         
         # Retry Configuration
         self.max_retries = 3

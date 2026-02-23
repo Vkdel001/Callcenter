@@ -18,21 +18,79 @@ class ESP32Handler:
         self.logger = logger
         self.device = None
         self.com_port = None
-        self.baud_rate = 9600
+        self.baud_rate = None  # Will be determined during connection
         self.device_width = 320
         self.device_height = 480
         self.chunk_size = 1024
         self.timeout = 5
     
+    def test_esp32_connection(self, port):
+        """Test if a COM port has a responsive ESP32 at any supported baud rate"""
+        baud_rates = self.config.esp32_baud_rates
+        
+        for baud in baud_rates:
+            self.logger.info(f"Testing {port} at {baud} baud...")
+            
+            try:
+                # Try to open connection
+                test_device = serial.Serial(
+                    port=port,
+                    baudrate=baud,
+                    timeout=2
+                )
+                time.sleep(1)  # Wait for device to initialize
+                
+                # Clear any pending data
+                test_device.reset_input_buffer()
+                test_device.reset_output_buffer()
+                
+                # Send a simple test command
+                test_device.write(b"test\n")
+                test_device.flush()
+                
+                # Wait for any response
+                response = ""
+                for _ in range(10):  # Wait up to 1 second
+                    if test_device.in_waiting > 0:
+                        try:
+                            line = test_device.readline().decode('utf-8', errors='ignore').strip()
+                            response += line
+                        except:
+                            pass
+                    time.sleep(0.1)
+                
+                test_device.close()
+                
+                # If we got any response, this is likely an ESP32
+                if len(response) > 0:
+                    self.logger.info(f"ESP32 responded at {baud} baud on {port}")
+                    self.baud_rate = baud  # Remember the working baud rate
+                    return True
+                    
+            except Exception as e:
+                # Connection failed at this baud rate, try next one
+                try:
+                    test_device.close()
+                except:
+                    pass
+                continue
+        
+        self.logger.warning(f"No ESP32 response on {port} at any baud rate")
+        return False
+    
     def connect(self):
-        """Auto-detect and connect to ESP32"""
+        """Auto-detect and connect to ESP32 with multi-baud rate support"""
         self.logger.info("Detecting ESP32 device...")
         
-        # Find ESP32 device
+        # Find ESP32 device (this also determines the baud rate)
         self.com_port = self.detect_esp32()
         if not self.com_port:
             self.logger.error("No ESP32 device found")
             return False
+        
+        # If baud rate wasn't determined during detection, use default
+        if not self.baud_rate:
+            self.baud_rate = 9600
         
         try:
             self.device = serial.Serial(
@@ -46,7 +104,7 @@ class ESP32Handler:
             self.device.reset_input_buffer()
             self.device.reset_output_buffer()
             
-            self.logger.info(f"Connected to ESP32 on {self.com_port}")
+            self.logger.info(f"Connected to ESP32 on {self.com_port} at {self.baud_rate} baud")
             return True
             
         except Exception as e:
@@ -54,33 +112,33 @@ class ESP32Handler:
             return False
     
     def detect_esp32(self):
-        """Auto-detect ESP32 COM port"""
+        """Auto-detect ESP32 COM port with enhanced chip detection"""
         ports = serial.tools.list_ports.comports()
         
-        # Look for common ESP32 USB-to-Serial chips
-        esp32_keywords = [
-            "USB Serial",
-            "CH340",
-            "CP210",
-            "UART",
-            "USB-SERIAL"
-        ]
+        # Use enhanced keywords from config
+        esp32_keywords = self.config.esp32_keywords
         
+        self.logger.info(f"Scanning {len(ports)} COM ports for ESP32 devices...")
+        
+        # First pass: Look for ESP32-specific USB chips
         for port in ports:
             description = port.description.upper()
             for keyword in esp32_keywords:
                 if keyword.upper() in description:
                     self.logger.info(f"Found potential ESP32 on {port.device}: {port.description}")
+                    # Test if this port actually has a responsive ESP32
+                    if self.test_esp32_connection(port.device):
+                        return port.device
+        
+        # Second pass: If no keyword match, test all available ports
+        if ports:
+            self.logger.warning("No ESP32 detected by USB chip description. Testing all available ports:")
+            for port in ports:
+                self.logger.info(f"  Testing {port.device}: {port.description}")
+                if self.test_esp32_connection(port.device):
                     return port.device
         
-        # If no match, list all available ports
-        if ports:
-            self.logger.warning("No ESP32 detected by description. Available ports:")
-            for port in ports:
-                self.logger.warning(f"  {port.device}: {port.description}")
-            # Return first port as fallback
-            return ports[0].device
-        
+        self.logger.error("No responsive ESP32 device found on any COM port")
         return None
     
     def display_qr(self, qr_image_data):
@@ -316,7 +374,7 @@ class ESP32Handler:
             return False
     
     def reconnect(self):
-        """Reconnect to device"""
+        """Reconnect to device with multi-baud rate support"""
         self.logger.info("Reconnecting to ESP32...")
         
         # Close existing connection
@@ -326,6 +384,9 @@ class ESP32Handler:
             except:
                 pass
             self.device = None
+        
+        # Reset baud rate so detection will test all rates again
+        self.baud_rate = None
         
         # Wait a bit for device to be ready
         time.sleep(2)

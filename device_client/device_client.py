@@ -80,7 +80,10 @@ class DeviceClient:
         self.poll_thread.start()
         self.logger.info("[OK] Polling started")
         
-        # Step 4: Start system tray (or console mode)
+        # Step 4: Launch browser with device parameters
+        self.launch_browser_with_device_info()
+        
+        # Step 5: Start system tray (or console mode)
         self.logger.info("=" * 60)
         self.logger.info("NIC Device Client is ONLINE")
         self.logger.info(f"Device ID: {self.device_id}")
@@ -94,6 +97,36 @@ class DeviceClient:
             self.run_console_mode()
         
         return True
+    
+    def launch_browser_with_device_info(self):
+        """Launch browser with device information as URL parameters"""
+        try:
+            import webbrowser
+            import urllib.parse
+            
+            # Get the web app URL from config
+            web_app_url = getattr(self.config, 'web_app_url', 'https://payments.niclmauritius.site')
+            
+            # Prepare URL parameters
+            params = {
+                'computer_name': self.config.computer_name,
+                'device_id': self.device_id,
+                'auto_link': 'true'
+            }
+            
+            # Build URL with parameters
+            url_with_params = f"{web_app_url}?{urllib.parse.urlencode(params)}"
+            
+            self.logger.info(f"Launching browser: {url_with_params}")
+            
+            # Launch browser
+            webbrowser.open(url_with_params)
+            
+            self.logger.info("[OK] Browser launched with device parameters")
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to launch browser: {e}")
+            self.logger.info("You can manually open the web app and the device will still work")
     
     def polling_loop(self):
         """Poll VPS for commands every 2 seconds"""

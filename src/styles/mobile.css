@@ -396,3 +396,27 @@
         opacity: 1 !important;
     }
 }
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  body {
+    background: white;
+  }
+  
+  .print-friendly {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+
+.print-only {
+  display: none;
+}

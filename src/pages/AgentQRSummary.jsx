@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from 'react-query'
+import axios from 'axios'
 import { useAuth } from '../contexts/AuthContext'
 import { qrTransactionService } from '../services/qrTransactionService'
-import { QrCode, TrendingUp, Clock, CheckCircle, XCircle, BarChart3, Eye, RefreshCw, Download, ChevronDown, FileSpreadsheet } from 'lucide-react'
+import { QrCode, TrendingUp, Clock, CheckCircle, XCircle, BarChart3, Eye, RefreshCw, Download, ChevronDown, FileSpreadsheet, FileText, Mail } from 'lucide-react'
 import { formatCurrency } from '../utils/currency'
 import { exportQRTransactionsToExcel } from '../utils/excelExport'
+import PaymentConfirmationModal from '../components/modals/PaymentConfirmationModal'
 
 const AgentQRSummary = () => {
   const { user } = useAuth()
@@ -16,6 +18,11 @@ const AgentQRSummary = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  
+  // Payment confirmation state
+  const [selectedTransaction, setSelectedTransaction] = useState(null)
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false)
+  const [isResending, setIsResending] = useState(false)
 
   // Calculate date range
   const getDateRange = (days) => {
@@ -190,6 +197,144 @@ const AgentQRSummary = () => {
       console.error('Export failed:', error)
       alert('Failed to export data. Please try again.')
     }
+  }
+
+  // Payment confirmation handlers
+  const handleViewPaymentConfirmation = (transaction) => {
+    setSelectedTransaction(transaction)
+    setShowConfirmationModal(true)
+  }
+
+  const handleResendConfirmation = async (transaction) => {
+    if (!transaction.customer_email) {
+      alert('❌ Customer email not available')
+      return
+    }
+
+    const confirmed = confirm(
+      `Resend payment confirmation email to ${transaction.customer_email}?`
+    )
+    
+    if (!confirmed) return
+
+    setIsResending(true)
+
+    try {
+      // Fetch payment details from nic_cc_payment
+      const paymentApi = axios.create({
+        baseURL: `${import.meta.env.VITE_XANO_BASE_URL}/api:${import.meta.env.VITE_XANO_PAYMENT_API}`
+      })
+      
+      const paymentsResponse = await paymentApi.get('/nic_cc_payment')
+      const payment = paymentsResponse.data.find(p => 
+        p.policy_number === transaction.policy_number && 
+        p.status === 'success'
+      )
+
+      if (!payment) {
+        throw new Error('Payment record not found')
+      }
+
+      // Send email via backend email service
+      const emailServiceUrl = import.meta.env.VITE_EMAIL_SERVICE_URL || 'http://localhost:3005'
+      const response = await fetch(`${emailServiceUrl}/api/email/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: {
+            name: 'NIC Life Insurance',
+            email: import.meta.env.VITE_SENDER_EMAIL || 'arrears@niclmauritius.site'
+          },
+          to: [{
+            email: transaction.customer_email,
+            name: transaction.customer_name
+          }],
+          cc: [{
+            email: user.email,
+            name: user.name
+          }],
+          replyTo: {
+            email: 'nicarlife@nicl.mu',
+            name: 'NIC Life Customer Service'
+          },
+          subject: `Payment Confirmation - Policy ${transaction.policy_number}`,
+          htmlContent: generatePaymentConfirmationHTML(payment, transaction)
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to send email')
+      }
+
+      alert('✅ Payment confirmation email resent successfully!')
+      
+    } catch (error) {
+      console.error('Resend email error:', error)
+      alert(`❌ Failed to resend email: ${error.message}`)
+    } finally {
+      setIsResending(false)
+    }
+  }
+
+  const generatePaymentConfirmationHTML = (payment, transaction) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #003366; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .info-box { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #28a745; }
+          .amount { font-size: 24px; font-weight: bold; color: #28a745; }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>NIC</h1>
+            <h2 style="margin: 10px 0 0 0; font-weight: normal;">Payment Confirmation</h2>
+          </div>
+          
+          <div class="content">
+            <p>Dear <strong>${transaction.customer_name}</strong>,</p>
+            
+            <p>Thank you for your payment! We have successfully received your payment.</p>
+            
+            <div class="info-box">
+              <h3 style="margin-top: 0; color: #003366;">Payment Details</h3>
+              <p><strong>Amount Paid:</strong> <span class="amount">MUR ${parseFloat(payment.amount).toLocaleString()}</span></p>
+              <p><strong>Policy Number:</strong> ${payment.policy_number}</p>
+              <p><strong>Payment Date:</strong> ${new Date(payment.payment_date).toLocaleString()}</p>
+              <p><strong>Transaction Reference:</strong> ${payment.transaction_reference}</p>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>📅 Payment Allocation</strong><br>
+                The payment allocation to your NIC account will be done in 3 to 4 working days.
+              </p>
+            </div>
+            
+            <p>If you have any questions about this payment, please contact our customer service team.</p>
+            
+            <p>Best regards,<br>
+            <strong>NIC Life Insurance Mauritius</strong></p>
+          </div>
+          
+          <div class="footer">
+            <p>NIC Centre, 217 Royal Road, Curepipe, Mauritius</p>
+            <p>This is an automated message</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
   }
 
   // Page number rendering helper
@@ -527,6 +672,9 @@ const AgentQRSummary = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Paid
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -574,11 +722,35 @@ const AgentQRSummary = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {transaction.paid_at ? formatDate(transaction.paid_at) : '-'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {transaction.status === 'paid' ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleViewPaymentConfirmation(transaction)}
+                            className="text-blue-600 hover:text-blue-800"
+                            title="View Payment Confirmation"
+                          >
+                            <FileText className="h-5 w-5" />
+                          </button>
+                          
+                          <button
+                            onClick={() => handleResendConfirmation(transaction)}
+                            disabled={!transaction.customer_email}
+                            className="text-green-600 hover:text-green-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                            title={transaction.customer_email ? "Resend Confirmation Email" : "No email available"}
+                          >
+                            <Mail className="h-5 w-5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Pending</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center">
+                  <td colSpan="8" className="px-6 py-12 text-center">
                     <QrCode className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">No QR transactions found for the selected period</p>
                     <p className="text-sm text-gray-400 mt-1">
@@ -680,6 +852,19 @@ const AgentQRSummary = () => {
             )}
           </div>
         </div>
+      )}
+      
+      {/* Payment Confirmation Modal */}
+      {showConfirmationModal && selectedTransaction && (
+        <PaymentConfirmationModal
+          transaction={selectedTransaction}
+          onClose={() => {
+            setShowConfirmationModal(false)
+            setSelectedTransaction(null)
+          }}
+          onResendEmail={handleResendConfirmation}
+          isResending={isResending}
+        />
       )}
     </div>
   )

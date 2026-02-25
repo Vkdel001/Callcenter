@@ -199,7 +199,7 @@ async function sendPaymentEmail(payment, customer) {
           </div>
           
           <div class="content">
-            <p>Dear <strong>${customer.name}</strong>,</p>
+            <p>Dear <strong>Mr/Mrs ${customer.name}</strong>,</p>
             
             <p>Thank you for your payment! We have successfully received your payment.</p>
             

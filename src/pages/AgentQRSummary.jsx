@@ -302,7 +302,7 @@ const AgentQRSummary = () => {
           </div>
           
           <div class="content">
-            <p>Dear <strong>${transaction.customer_name}</strong>,</p>
+            <p>Dear <strong>Mr/Mrs ${transaction.customer_name}</strong>,</p>
             
             <p>Thank you for your payment! We have successfully received your payment.</p>
             
